@@ -1,15 +1,22 @@
 apply plugin: 'com.android.application'
 
 android {
-    compileSdkVersion 27
+    def sdk = rootProject.ext.sdk
+    compileSdkVersion sdk.compileSdkVersion
+
     defaultConfig {
         applicationId "com.ubtrobot.cerebra"
-        minSdkVersion 15
-        targetSdkVersion 27
-        versionCode 1
-        versionName "1.0"
+
+        minSdkVersion sdk.minSdkVersion
+        targetSdkVersion sdk.targetSdkVersion
+
+        def versions = rootProject.ext.versions
+        versionCode versions.sampleVersionCode
+        versionName versions.sampleVersionName
+
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
     }
+
     buildTypes {
         release {
             minifyEnabled false
@@ -20,8 +27,18 @@ android {
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
-    implementation 'com.android.support:appcompat-v7:27.1.1'
-    testImplementation 'junit:junit:4.12'
-    androidTestImplementation 'com.android.support.test:runner:1.0.1'
-    androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.1'
+
+    def deps = rootProject.ext.deps
+    implementation deps.appcompat
+    implementation deps.design
+    implementation deps.constraintLayout
+
+    api deps.platformcruzr
+    implementation deps.ulogAndroid
+    implementation deps.ulog
+
+    implementation 'com.android.support.constraint:constraint-layout:1.1.0'
+    testImplementation deps.junit
+    androidTestImplementation deps.espressoCore
+    androidTestImplementation deps.runner
 }
