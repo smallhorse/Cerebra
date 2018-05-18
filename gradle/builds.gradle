@@ -53,7 +53,8 @@ ext {
             espressoCore    : 'com.android.support.test.espresso:espresso-core:3.0.1',
             runner          : 'com.android.support.test:runner:1.0.1',
 
-            platformcruzr   : 'com.ubtrobot.framework:platform-cruzr:0.5.0-SNAPSHOT',
+            platformcruzr   : 'com.ubtrobot.framework:product-cruzr:0.5.0-SNAPSHOT',
+            rx2Async        : 'com.ubtrobot.async:rx2-async:0.1.0-SNAPSHOT',
             ulog            : "com.ubtrobot.ulog:ulog:0.0.2",
             ulogAndroid     : 'com.ubtrobot.ulog:logger-android:0.0.1',
 
