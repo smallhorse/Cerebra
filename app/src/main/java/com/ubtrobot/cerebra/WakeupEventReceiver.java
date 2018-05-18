@@ -8,7 +8,7 @@ import com.ubtrobot.wakeup.StaticWakeupEventReceiver;
 import com.ubtrobot.wakeup.WakeupEvent;
 
 /**
- * 监听 Wakeup 事件
+ * A Receiver that receives @{WakeupEvnet}
  */
 public class WakeupEventReceiver extends StaticWakeupEventReceiver {
     private static final Logger LOGGER = ULog.getLogger("WakeupEventReceiver");
