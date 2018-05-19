@@ -13,6 +13,7 @@ import com.ubtrobot.master.interactor.MasterInteractor;
 import com.ubtrobot.master.skill.SkillIntent;
 import com.ubtrobot.master.skill.SkillsProxy;
 import com.ubtrobot.master.transport.message.CallGlobalCode;
+import com.ubtrobot.master.transport.message.parcel.ParcelableParam;
 import com.ubtrobot.speech.Recognizer;
 import com.ubtrobot.speech.SpeechManager;
 import com.ubtrobot.speech.UnderstandOption;
@@ -190,7 +191,7 @@ public class CerebraService extends Service {
             String action = understandResult.getIntent().getName();
             LOGGER.i("UnderstandResult:" + action);
             try {
-                Response response = mSkillsProxy.call(action);
+                Response response = mSkillsProxy.call(action, ParcelableParam.create(understandResult));
                 LOGGER.i("Calling skill succeeded." + response.toString());
                 emitter.onComplete();
             } catch (CallException e) {
