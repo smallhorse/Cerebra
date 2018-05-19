@@ -48,9 +48,14 @@ public class ToneHelper {
             if (mUri.equals(uri) && mRingtone != null) {
                 mRingtone.play();
             } else {
-                mRingtone = RingtoneManager.getRingtone(mContext, Uri.parse(mUri));
-                mRingtone.setStreamType(AudioManager.STREAM_MUSIC);
-                mRingtone.play();
+                try {
+                    mRingtone = RingtoneManager.getRingtone(mContext, Uri.parse(mUri));
+                    mRingtone.setStreamType(AudioManager.STREAM_MUSIC);
+                    mRingtone.play();
+                }catch (Exception e) {
+                    LOGGER.e("Play tone error!");
+                    LOGGER.e(e);
+                }
             }
 
             emitter.onNext(mUri);
