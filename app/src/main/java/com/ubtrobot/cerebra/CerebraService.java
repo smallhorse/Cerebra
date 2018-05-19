@@ -16,7 +16,7 @@ import com.ubtrobot.master.transport.message.CallGlobalCode;
 import com.ubtrobot.speech.Recognizer;
 import com.ubtrobot.speech.SpeechManager;
 import com.ubtrobot.speech.UnderstandOption;
-import com.ubtrobot.speech.understand.UnderstandResult;
+import com.ubtrobot.speech.UnderstandResult;
 import com.ubtrobot.transport.message.CallException;
 import com.ubtrobot.transport.message.Response;
 import com.ubtrobot.ulog.Logger;
@@ -195,8 +195,19 @@ public class CerebraService extends Service {
                 emitter.onComplete();
             } catch (CallException e) {
                 LOGGER.i("DispatchEventOnline: Calling skill failed.");
+                LOGGER.e(e);
 
-                emitter.onError(new Exception(getString(R.string.i_do_not_understand_what_you_are_talking_about)));
+                if (CallGlobalCode.NOT_FOUND != e.getCode()) {
+                    emitter.onError(new Exception(getString(R.string.system_failure)));
+                } else {
+                    emitter.onError(new Exception(getString(R.string.i_do_not_understand_what_you_are_talking_about)));
+                }
+            } catch (Exception e) {
+                LOGGER.i("DispatchEventOnline: Calling skill failed. Other exception.");
+                LOGGER.e(e);
+
+                emitter.onError(new Exception(getString(R.string.system_failure)));
+
             }
         });
     }
