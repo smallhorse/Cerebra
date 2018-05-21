@@ -34,6 +34,7 @@ import static com.ubtrobot.cerebra.RobotSystemConfig.WakeupConfig.WakeupRingConf
 import static com.ubtrobot.cerebra.RobotSystemConfig.WakeupConfig.WakeupRingConfig.WAKEUP_RING_TYPE_SPEECH;
 import static com.ubtrobot.cerebra.RobotSystemConfig.WakeupConfig.WakeupRingConfig.WAKEUP_RING_TYPE_TONE;
 import static com.ubtrobot.wakeup.WakeupEvent.TYPE_SIMULATE;
+import static com.ubtrobot.wakeup.WakeupEvent.TYPE_VISION;
 import static com.ubtrobot.wakeup.WakeupEvent.TYPE_VOICE;
 
 
@@ -130,7 +131,14 @@ public class CerebraService extends Service {
         if (wakeupEvent.getType() == TYPE_VOICE || wakeupEvent.getType() == TYPE_SIMULATE) {
             LOGGER.i("Robot background task is interrupted.");
             stopRobotBackgroundTask();
+        } else if (wakeupEvent.getType() == TYPE_VISION) {
+            // Ignore vision wakeup event in wakeup status.
+            if(!mCompositeDisposable.isDisposed()) {
+                LOGGER.i("Ignore vision wakeup event in wakeup status.");
+                return;
+            }
         }
+
 
         Disposable disposable = palyWakeupNotification(wakeupEvent, robotSystemConfig)
                 .subscribeOn(Schedulers.io())
