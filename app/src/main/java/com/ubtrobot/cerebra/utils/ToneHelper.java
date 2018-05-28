@@ -1,4 +1,4 @@
-package com.ubtrobot.cerebra;
+package com.ubtrobot.cerebra.utils;
 
 import android.content.ContentResolver;
 import android.content.Context;
@@ -8,6 +8,7 @@ import android.media.RingtoneManager;
 import android.net.Uri;
 import android.text.TextUtils;
 
+import com.ubtrobot.cerebra.R;
 import com.ubtrobot.ulog.Logger;
 import com.ubtrobot.ulog.ULog;
 
