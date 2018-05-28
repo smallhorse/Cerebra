@@ -19,7 +19,9 @@ import com.ubtrobot.speech.SpeechManager;
 import com.ubtrobot.speech.UnderstandOption;
 import com.ubtrobot.speech.UnderstandResult;
 import com.ubtrobot.transport.message.CallException;
+import com.ubtrobot.transport.message.Request;
 import com.ubtrobot.transport.message.Response;
+import com.ubtrobot.transport.message.ResponseCallback;
 import com.ubtrobot.ulog.Logger;
 import com.ubtrobot.ulog.ULog;
 import com.ubtrobot.wakeup.WakeupEvent;
@@ -44,6 +46,11 @@ import static com.ubtrobot.wakeup.WakeupEvent.TYPE_VOICE;
 public class CerebraService extends Service {
 
     public static final String WAKEUP_EVENT = "WAKEUP_EVENT";
+
+    private static final String CHAT_SKILL_UNDERSTAND = "/chat/result/understand";
+    private static final String CHAT_SKILL_RECOGNIZE = "/chat/result/recognize";
+
+
     private static final String MASTER_INTERACTOR = "MasterInteractor";
 
     private static final Logger LOGGER = ULog.getLogger("CerebraService");
@@ -133,7 +140,7 @@ public class CerebraService extends Service {
             stopRobotBackgroundTask();
         } else if (wakeupEvent.getType() == TYPE_VISION) {
             // Ignore vision wakeup event in wakeup status.
-            if(!mCompositeDisposable.isDisposed()) {
+            if (!mCompositeDisposable.isDisposed()) {
                 LOGGER.i("Ignore vision wakeup event in wakeup status.");
                 return;
             }
@@ -147,6 +154,7 @@ public class CerebraService extends Service {
                 .andThen(new ObservableFromProgressivePromise<>(mSpeechManager.recognize()))
                 .filter(progressOrDone -> progressOrDone.isDone())
                 .flatMap(progressOrDone -> dispatchEventLocally(progressOrDone.getDone()))
+                .doOnNext(recognizeResult -> sendRecognizeResultToVoiceAssistant(recognizeResult))
                 .flatMap(recognizeResult -> understand(recognizeResult))
                 .flatMap(understandResult -> dispatchEventOnline(understandResult))
                 .subscribe(o -> {
@@ -161,6 +169,27 @@ public class CerebraService extends Service {
                 }, () -> LOGGER.i("Wakeup process completed."));
 
         mCompositeDisposable.add(disposable);
+    }
+
+    private void sendRecognizeResultToVoiceAssistant(Recognizer.RecognizeResult recognizeResult) {
+        LOGGER.i("Send RecognizeResult To VoiceAssistant");
+
+        // The stream continues no mather whether calling voice assistant succeed or not.
+        mSkillsProxy.call(CHAT_SKILL_RECOGNIZE,
+                ParcelableParam.create(recognizeResult),
+                new ResponseCallback() {
+                    @Override
+                    public void onResponse(Request request, Response response) {
+                        LOGGER.i("Send RecognizeResult To VoiceAssistant: succeed.");
+
+                    }
+
+                    @Override
+                    public void onFailure(Request request, CallException e) {
+                        LOGGER.e("Send RecognizeResult To VoiceAssistant: failed.");
+                        LOGGER.e(e);
+                    }
+                });
     }
 
     private Observable<Recognizer.RecognizeResult> dispatchEventLocally(final Recognizer.RecognizeResult recognizeResult) {
@@ -209,7 +238,9 @@ public class CerebraService extends Service {
                 if (CallGlobalCode.NOT_FOUND != e.getCode()) {
                     emitter.onError(new Exception(getString(R.string.system_failure)));
                 } else {
-                    emitter.onError(new Exception(getString(R.string.i_do_not_understand_what_you_are_talking_about)));
+                    Response response = mSkillsProxy.call(CHAT_SKILL_UNDERSTAND, ParcelableParam.create(understandResult));
+                    LOGGER.i("Calling chat skill succeeded." + response.toString());
+                    emitter.onComplete();
                 }
             } catch (Exception e) {
                 LOGGER.i("DispatchEventOnline: Calling skill failed. Other exception.");
