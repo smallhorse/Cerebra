@@ -1,4 +1,4 @@
-package com.ubtrobot.cerebra;
+package com.ubtrobot.cerebra.model;
 
 import com.ubtrobot.wakeup.WakeupEvent;
 
