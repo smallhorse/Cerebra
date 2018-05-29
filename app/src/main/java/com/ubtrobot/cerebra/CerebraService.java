@@ -18,6 +18,7 @@ import com.ubtrobot.master.skill.SkillsProxy;
 import com.ubtrobot.master.transport.message.CallGlobalCode;
 import com.ubtrobot.master.transport.message.parcel.ParcelableParam;
 import com.ubtrobot.speech.Recognizer;
+import com.ubtrobot.speech.SpeechInteraction;
 import com.ubtrobot.speech.SpeechManager;
 import com.ubtrobot.speech.UnderstandOption;
 import com.ubtrobot.speech.UnderstandResult;
@@ -34,6 +35,7 @@ import io.reactivex.ObservableOnSubscribe;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.functions.Consumer;
+import io.reactivex.functions.Function;
 import io.reactivex.schedulers.Schedulers;
 
 import static com.ubtrobot.cerebra.model.RobotSystemConfig.WakeupConfig.WakeupRingConfig.WAKEUP_RING_TYPE_NONE;
@@ -163,7 +165,7 @@ public class CerebraService extends Service {
                 .flatMap(progressOrDone -> dispatchEventLocally(progressOrDone.getDone()))
                 .doOnNext(recognizeResult -> sendRecognizeResultToVoiceAssistant(recognizeResult))
                 .flatMap(recognizeResult -> understand(recognizeResult))
-                .flatMap(understandResult -> dispatchEventOnline(understandResult))
+                .flatMap(speechInteraction -> dispatchEventOnline(speechInteraction))
                 .subscribe(o -> {
                     LOGGER.i("Wakeup process started.");
                 }, throwable -> {
@@ -227,20 +229,26 @@ public class CerebraService extends Service {
         return observable;
     }
 
-    private Observable<UnderstandResult> understand(final Recognizer.RecognizeResult recognizeResult) {
+    private Observable<SpeechInteraction> understand(final Recognizer.RecognizeResult recognizeResult) {
         LOGGER.i("recognizeResult.getText():" + recognizeResult.getText());
-        return new ObservableFromPromise<>(mSpeechManager.understand(recognizeResult.getText(), UnderstandOption.DEFAULT));
+       return new ObservableFromPromise<>(mSpeechManager.understand(recognizeResult.getText(), UnderstandOption.DEFAULT))
+                .map(understandResult -> {
+                    SpeechInteraction.Builder builder = new SpeechInteraction.Builder();
+                    builder.setRecognizeResult(recognizeResult);
+                    builder.setUnderstandResult(understandResult);
+                    return builder.build();
+                });
     }
 
-    private Observable dispatchEventOnline(UnderstandResult understandResult) {
+    private Observable dispatchEventOnline(SpeechInteraction speechInteraction) {
         return Observable.create((ObservableOnSubscribe<UnderstandResult>) emitter -> {
 
-            String action = understandResult.getIntent().getName();
+            String action = speechInteraction.getUnderstandResult().getIntent().getName();
             LOGGER.i("UnderstandResult:" + action);
 
             try {
 
-                Response response = mSkillsProxy.call(action, ParcelableParam.create(understandResult));
+                Response response = mSkillsProxy.call(action, ParcelableParam.create(speechInteraction));
                 LOGGER.i("Calling skill succeeded." + response.toString());
                 emitter.onComplete();
             } catch (CallException e) {
@@ -251,7 +259,7 @@ public class CerebraService extends Service {
                 if (CallGlobalCode.NOT_FOUND != e.getCode()) {
                     emitter.onError(new Exception(getString(R.string.system_failure)));
                 } else {
-                    Response response = mSkillsProxy.call(CHAT_SKILL_UNDERSTAND, ParcelableParam.create(understandResult));
+                    Response response = mSkillsProxy.call(CHAT_SKILL_UNDERSTAND, ParcelableParam.create(speechInteraction));
                     LOGGER.i("Calling chat skill succeeded." + response.toString());
                     emitter.onComplete();
                 }

@@ -104,7 +104,7 @@ public class ContentProviderHelper {
                     emitter.onComplete();
 
                 })
-                .throttleLast(1, TimeUnit.SECONDS)
+//                .throttleLast(1, TimeUnit.SECONDS)
                 .subscribeOn(Schedulers.single())
                 .subscribe();
     }
