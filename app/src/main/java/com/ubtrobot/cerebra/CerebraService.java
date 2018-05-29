@@ -9,6 +9,7 @@ import com.ubtrobot.Robot;
 import com.ubtrobot.async.rx.ObservableFromProgressivePromise;
 import com.ubtrobot.async.rx.ObservableFromPromise;
 import com.ubtrobot.cerebra.model.RobotSystemConfig;
+import com.ubtrobot.cerebra.utils.ContentProviderHelper;
 import com.ubtrobot.cerebra.utils.ToneHelper;
 import com.ubtrobot.master.context.MasterContext;
 import com.ubtrobot.master.interactor.MasterInteractor;
@@ -32,6 +33,7 @@ import io.reactivex.Observable;
 import io.reactivex.ObservableOnSubscribe;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
+import io.reactivex.functions.Consumer;
 import io.reactivex.schedulers.Schedulers;
 
 import static com.ubtrobot.cerebra.model.RobotSystemConfig.WakeupConfig.WakeupRingConfig.WAKEUP_RING_TYPE_NONE;
@@ -65,6 +67,7 @@ public class CerebraService extends Service {
     private CompositeDisposable mCompositeDisposable = new CompositeDisposable();
 
     private ToneHelper mToneHelper;
+    private ContentProviderHelper mContentProviderHelper;
 
     @Override
     public void onCreate() {
@@ -76,6 +79,7 @@ public class CerebraService extends Service {
         mSkillsProxy = mMasterInteractor.createSkillsProxy();
 
         mToneHelper = new ToneHelper(this);
+        mContentProviderHelper = new ContentProviderHelper(this);
     }
 
     @Override
@@ -106,7 +110,7 @@ public class CerebraService extends Service {
      * @return Current system configure
      */
     private RobotSystemConfig getRobotSystemConfig() {
-        return new RobotSystemConfig();
+        return mContentProviderHelper.getRobotSystemConfig();
     }
 
 
@@ -138,16 +142,17 @@ public class CerebraService extends Service {
 
         // Interrupt current robot background task
         if (wakeupEvent.getType() == TYPE_VOICE || wakeupEvent.getType() == TYPE_SIMULATE) {
+
             LOGGER.i("Robot background task is interrupted.");
             stopRobotBackgroundTask();
         } else if (wakeupEvent.getType() == TYPE_VISION) {
+
             // Ignore vision wakeup event in wakeup status.
             if (!mCompositeDisposable.isDisposed()) {
                 LOGGER.i("Ignore vision wakeup event in wakeup status.");
                 return;
             }
         }
-
 
         Disposable disposable = palyWakeupNotification(wakeupEvent, robotSystemConfig)
                 .subscribeOn(Schedulers.io())
@@ -198,12 +203,15 @@ public class CerebraService extends Service {
 
         SkillIntent skillIntent = new SkillIntent(SkillIntent.CATEGORY_SPEECH);
         skillIntent.setSpeechUtterance(recognizeResult.getText());
+
         Observable<Recognizer.RecognizeResult> observable = Observable.create(emitter -> {
             try {
+
                 Response response = mSkillsProxy.call(skillIntent);
                 LOGGER.i("Calling skill succeeded." + response.toString());
                 emitter.onComplete();
             } catch (CallException e) {
+
                 if (CallGlobalCode.NOT_FOUND != e.getCode()) {
                     emitter.onError(new Exception(getString(R.string.system_failure)));
                     LOGGER.e(e);
@@ -229,11 +237,14 @@ public class CerebraService extends Service {
 
             String action = understandResult.getIntent().getName();
             LOGGER.i("UnderstandResult:" + action);
+
             try {
+
                 Response response = mSkillsProxy.call(action, ParcelableParam.create(understandResult));
                 LOGGER.i("Calling skill succeeded." + response.toString());
                 emitter.onComplete();
             } catch (CallException e) {
+
                 LOGGER.i("DispatchEventOnline: Calling skill failed.");
                 LOGGER.e(e);
 
@@ -245,11 +256,11 @@ public class CerebraService extends Service {
                     emitter.onComplete();
                 }
             } catch (Exception e) {
+
                 LOGGER.i("DispatchEventOnline: Calling skill failed. Other exception.");
                 LOGGER.e(e);
 
                 emitter.onError(new Exception(getString(R.string.system_failure)));
-
             }
         });
     }
@@ -267,6 +278,7 @@ public class CerebraService extends Service {
     public void onDestroy() {
         stopRobotBackgroundTask();
         mToneHelper.release();
+        mContentProviderHelper.release();
 
         super.onDestroy();
     }

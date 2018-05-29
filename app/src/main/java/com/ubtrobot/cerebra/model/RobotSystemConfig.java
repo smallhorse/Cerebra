@@ -31,9 +31,6 @@ public class RobotSystemConfig {
     }
 
 
-
-
-
     public static class WakeupConfig {
         private Map<Integer, WakeupRingConfig> wakeupRingConfigs = new HashMap<>();
         private boolean isRotateRobotOn = false;

@@ -27,39 +27,45 @@ public class ToneHelper {
 
     private Context mContext;
     private Ringtone mRingtone;
-    private String mUri;
+    private String mDefaultUri;
+    private String mLastUri;
 
     public ToneHelper(Context context) {
         mContext = context;
-        mUri = ContentResolver.SCHEME_ANDROID_RESOURCE + "://" + context.getPackageName()
+        mDefaultUri = ContentResolver.SCHEME_ANDROID_RESOURCE + "://" + context.getPackageName()
                 + "/" + R.raw.wakeup;
-        LOGGER.i("default tone uri: " + mUri);
+        mLastUri = mDefaultUri;
+
+        LOGGER.i("default tone uri: " + mDefaultUri);
 
     }
 
     public Observable play(String uri) {
         return Observable.create((ObservableOnSubscribe<String>) emitter -> {
 
-            if (!TextUtils.isEmpty(uri) && !uri.endsWith("/0")) {
-                mUri = uri;
-            } else {
+            String currentUri;
+            if (TextUtils.isEmpty(uri)) {
                 LOGGER.i("Invalid ringtone path, play default ringtone instead.");
+                currentUri = mDefaultUri;
+            } else {
+                currentUri = uri;
             }
 
-            if (mUri.equals(uri) && mRingtone != null) {
+            if (mLastUri.equals(currentUri) && mRingtone != null) {
                 mRingtone.play();
             } else {
                 try {
-                    mRingtone = RingtoneManager.getRingtone(mContext, Uri.parse(mUri));
+                    mRingtone = RingtoneManager.getRingtone(mContext, Uri.parse(currentUri));
                     mRingtone.setStreamType(AudioManager.STREAM_MUSIC);
                     mRingtone.play();
+                    mLastUri = currentUri;
                 }catch (Exception e) {
                     LOGGER.e("Play tone error!");
                     LOGGER.e(e);
                 }
             }
 
-            emitter.onNext(mUri);
+            emitter.onNext(mLastUri);
             emitter.onComplete();
         }).delay(1, TimeUnit.SECONDS);
     }
