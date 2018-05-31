@@ -11,12 +11,14 @@ import com.ubtrobot.async.rx.ObservableFromPromise;
 import com.ubtrobot.cerebra.model.RobotSystemConfig;
 import com.ubtrobot.cerebra.utils.ContentProviderHelper;
 import com.ubtrobot.cerebra.utils.ToneHelper;
+import com.ubtrobot.exception.AccessServiceException;
 import com.ubtrobot.master.context.MasterContext;
 import com.ubtrobot.master.interactor.MasterInteractor;
 import com.ubtrobot.master.skill.SkillIntent;
 import com.ubtrobot.master.skill.SkillsProxy;
 import com.ubtrobot.master.transport.message.CallGlobalCode;
 import com.ubtrobot.master.transport.message.parcel.ParcelableParam;
+import com.ubtrobot.speech.RecognizeException;
 import com.ubtrobot.speech.Recognizer;
 import com.ubtrobot.speech.SpeechInteraction;
 import com.ubtrobot.speech.SpeechManager;
@@ -169,12 +171,21 @@ public class CerebraService extends Service {
                 .subscribe(o -> {
                     LOGGER.i("Wakeup process started.");
                 }, throwable -> {
-                    String msg = ((Throwable) throwable).getMessage();
-                    LOGGER.e(msg);
-                    mCompositeDisposable.add(
-                            talk(msg).subscribeOn(Schedulers.io())
-                                    .observeOn(Schedulers.io())
-                                    .subscribe());
+                    if(throwable instanceof RecognizeException) {
+                        mCompositeDisposable.add(
+                                talk(getString(R.string.i_do_not_understand_what_you_are_talking_about))
+                                        .subscribeOn(Schedulers.io())
+                                        .observeOn(Schedulers.io())
+                                        .subscribe());
+                    } else if (throwable instanceof AccessServiceException) {
+                        mCompositeDisposable.add(
+                                talk(getString(R.string.system_failure))
+                                        .subscribeOn(Schedulers.io())
+                                        .observeOn(Schedulers.io())
+                                        .subscribe());
+                    }
+                    LOGGER.e("Wakeup process error.");
+                    LOGGER.e((Throwable) throwable);
                 }, () -> LOGGER.i("Wakeup process completed."));
 
         mCompositeDisposable.add(disposable);
@@ -215,8 +226,7 @@ public class CerebraService extends Service {
             } catch (CallException e) {
 
                 if (CallGlobalCode.NOT_FOUND != e.getCode()) {
-                    emitter.onError(new Exception(getString(R.string.system_failure)));
-                    LOGGER.e(e);
+                    emitter.onError(e);
                 } else {
                     LOGGER.i("DispatchEventLocally: Calling skill failed.");
 
@@ -257,18 +267,12 @@ public class CerebraService extends Service {
                 LOGGER.e(e);
 
                 if (CallGlobalCode.NOT_FOUND != e.getCode()) {
-                    emitter.onError(new Exception(getString(R.string.system_failure)));
+                    emitter.onError(e);
                 } else {
                     Response response = mSkillsProxy.call(CHAT_SKILL_UNDERSTAND, ParcelableParam.create(speechInteraction));
                     LOGGER.i("Calling chat skill succeeded." + response.toString());
                     emitter.onComplete();
                 }
-            } catch (Exception e) {
-
-                LOGGER.i("DispatchEventOnline: Calling skill failed. Other exception.");
-                LOGGER.e(e);
-
-                emitter.onError(new Exception(getString(R.string.system_failure)));
             }
         });
     }
