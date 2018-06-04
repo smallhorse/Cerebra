@@ -212,7 +212,8 @@ public class CerebraService extends Service {
             }
         }
 
-        Disposable disposable = palyWakeupNotification(wakeupEvent, robotSystemConfig)
+        Disposable disposable = stopTTs()
+                .flatMap(o -> palyWakeupNotification(wakeupEvent, robotSystemConfig))
                 .subscribeOn(Schedulers.io())
                 .observeOn(Schedulers.io())
                 .ignoreElements()
@@ -339,10 +340,14 @@ public class CerebraService extends Service {
     private Observable talk(String msg) {
         if (!TextUtils.isEmpty(msg)) {
             LOGGER.i("Talk: " + msg);
-            return new ObservableFromPromise(mSpeechManager.synthesize(msg));
+            return new ObservableFromProgressivePromise(mSpeechManager.synthesize(msg));
         } else {
             return Observable.empty();
         }
+    }
+
+    private Observable stopTTs() {
+        return new ObservableFromProgressivePromise(mSpeechManager.synthesize(" "));
     }
 
     @Override
