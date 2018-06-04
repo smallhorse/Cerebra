@@ -133,7 +133,7 @@ public class CerebraService extends Service {
                 .subscribe(angle -> {
 
                     // The real angle is scaled at a delta ratio to the tech manuals.
-                    float delta = 55 / 155;
+                    float delta = 55f / 155f;
                     float angleYawTurn = angle - 180;
                     float angleLocomoter = angleYawTurn * delta + wakeupEvent.getAngle();
 
@@ -143,6 +143,8 @@ public class CerebraService extends Service {
 
                     LOGGER.i("TurnToCustomer, wakeup angle:" + wakeupEvent.getAngle());
                     LOGGER.i("TurnToCustomer, Yaw angle:" + angle);
+                    LOGGER.i("TurnToCustomer, loco angle:" + angleLocomoter);
+
 
                     Disposable disposableYaw = new ObservableFromProgressivePromise<>(
                             mMotionManager.jointRotateBy(ROBOT_YAW_ID, (-angleYawTurn), duration))
