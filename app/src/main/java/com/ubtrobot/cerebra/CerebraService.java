@@ -148,8 +148,8 @@ public class CerebraService extends Service {
 
                     Disposable disposableYaw = new ObservableFromProgressivePromise<>(
                             mMotionManager.jointRotateBy(ROBOT_YAW_ID, (-angleYawTurn), duration))
-                            .subscribeOn(Schedulers.io())
-                            .observeOn(Schedulers.io())
+                            .subscribeOn(Schedulers.single())
+                            .observeOn(Schedulers.single())
                             .subscribe(o -> {
                                     }
                                     , throwable -> LOGGER.e(throwable));
@@ -158,8 +158,8 @@ public class CerebraService extends Service {
 
                     Disposable disposableMotion = new ObservableFromPromise<>(
                             mMotionManager.turnBy(angleLocomoter, duration))
-                            .subscribeOn(Schedulers.io())
-                            .observeOn(Schedulers.io())
+                            .subscribeOn(Schedulers.single())
+                            .observeOn(Schedulers.single())
                             .subscribe(o -> {
                                     }
                                     , throwable -> LOGGER.e(throwable));
@@ -216,8 +216,8 @@ public class CerebraService extends Service {
 
         Disposable disposable = stopTTs()
                 .flatMap(o -> palyWakeupNotification(wakeupEvent, robotSystemConfig))
-                .subscribeOn(Schedulers.io())
-                .observeOn(Schedulers.io())
+                .subscribeOn(Schedulers.single())
+                .observeOn(Schedulers.single())
                 .ignoreElements()
                 .andThen(new ObservableFromProgressivePromise<>(mSpeechManager.recognize()))
                 .filter(progressOrDone -> progressOrDone.isDone())
@@ -231,14 +231,14 @@ public class CerebraService extends Service {
                     if (throwable instanceof RecognizeException) {
                         mCompositeDisposable.add(
                                 talk(getString(R.string.i_do_not_understand_what_you_are_talking_about))
-                                        .subscribeOn(Schedulers.io())
-                                        .observeOn(Schedulers.io())
+                                        .subscribeOn(Schedulers.single())
+                                        .observeOn(Schedulers.single())
                                         .subscribe());
                     } else if (throwable instanceof AccessServiceException) {
                         mCompositeDisposable.add(
                                 talk(getString(R.string.system_failure))
-                                        .subscribeOn(Schedulers.io())
-                                        .observeOn(Schedulers.io())
+                                        .subscribeOn(Schedulers.single())
+                                        .observeOn(Schedulers.single())
                                         .subscribe());
                     }
                     LOGGER.e("Wakeup process error.");
