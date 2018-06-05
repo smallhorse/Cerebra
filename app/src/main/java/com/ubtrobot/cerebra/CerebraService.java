@@ -62,6 +62,9 @@ public class CerebraService extends Service {
 
     private static final String ROBOT_YAW_ID = "HeadYaw";
 
+    private static final int WAKE_UP_TURN_RANGE = 30;
+
+
     private static final Logger LOGGER = ULog.getLogger("CerebraService");
 
     private MasterContext mMasterContext;
@@ -145,6 +148,9 @@ public class CerebraService extends Service {
                     LOGGER.i("TurnToCustomer, Yaw angle:" + angle);
                     LOGGER.i("TurnToCustomer, loco angle:" + angleLocomoter);
 
+                    if(Math.abs(angleYawTurn) < WAKE_UP_TURN_RANGE && Math.abs(angleLocomoter) < 30) {
+                        return;
+                    }
 
                     Disposable disposableYaw = new ObservableFromProgressivePromise<>(
                             mMotionManager.jointRotateBy(ROBOT_YAW_ID, (-angleYawTurn), duration))
@@ -172,7 +178,7 @@ public class CerebraService extends Service {
 
     }
 
-    private Observable palyWakeupNotification(WakeupEvent wakeupEvent,
+    private Observable playWakeupNotification(WakeupEvent wakeupEvent,
                                               RobotSystemConfig robotSystemConfig) {
         RobotSystemConfig.WakeupConfig.WakeupRingConfig wakeupRingConfig =
                 robotSystemConfig.getWakeupConfig().getWakeupRingConfig(wakeupEvent.getType());
@@ -215,7 +221,7 @@ public class CerebraService extends Service {
         }
 
         Disposable disposable = stopTTs()
-                .flatMap(o -> palyWakeupNotification(wakeupEvent, robotSystemConfig))
+                .flatMap(o -> playWakeupNotification(wakeupEvent, robotSystemConfig))
                 .subscribeOn(Schedulers.single())
                 .observeOn(Schedulers.single())
                 .ignoreElements()
