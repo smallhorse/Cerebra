@@ -9,10 +9,10 @@ import com.ubtrobot.Robot;
 import com.ubtrobot.async.rx.ObservableFromProgressivePromise;
 import com.ubtrobot.async.rx.ObservableFromPromise;
 import com.ubtrobot.cerebra.model.RobotSystemConfig;
+import com.ubtrobot.cerebra.model.WakeupRingConfig;
 import com.ubtrobot.cerebra.utils.ContentProviderHelper;
 import com.ubtrobot.cerebra.utils.ToneHelper;
 import com.ubtrobot.exception.AccessServiceException;
-import com.ubtrobot.master.competition.CompetitionSession;
 import com.ubtrobot.master.context.MasterContext;
 import com.ubtrobot.master.interactor.MasterInteractor;
 import com.ubtrobot.master.skill.SkillIntent;
@@ -34,15 +34,16 @@ import com.ubtrobot.ulog.Logger;
 import com.ubtrobot.ulog.ULog;
 import com.ubtrobot.wakeup.WakeupEvent;
 
+import io.reactivex.Completable;
 import io.reactivex.Observable;
 import io.reactivex.ObservableOnSubscribe;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.schedulers.Schedulers;
 
-import static com.ubtrobot.cerebra.model.RobotSystemConfig.WakeupConfig.WakeupRingConfig.WAKEUP_RING_TYPE_NONE;
-import static com.ubtrobot.cerebra.model.RobotSystemConfig.WakeupConfig.WakeupRingConfig.WAKEUP_RING_TYPE_SPEECH;
-import static com.ubtrobot.cerebra.model.RobotSystemConfig.WakeupConfig.WakeupRingConfig.WAKEUP_RING_TYPE_TONE;
+import static com.ubtrobot.cerebra.model.WakeupRingConfig.WAKEUP_RING_TYPE_NONE;
+import static com.ubtrobot.cerebra.model.WakeupRingConfig.WAKEUP_RING_TYPE_SPEECH;
+import static com.ubtrobot.cerebra.model.WakeupRingConfig.WAKEUP_RING_TYPE_TONE;
 import static com.ubtrobot.wakeup.WakeupEvent.TYPE_SIMULATE;
 import static com.ubtrobot.wakeup.WakeupEvent.TYPE_VISION;
 import static com.ubtrobot.wakeup.WakeupEvent.TYPE_VOICE;
@@ -64,7 +65,6 @@ public class CerebraService extends Service {
 
     private static final int WAKE_UP_TURN_RANGE = 30;
 
-
     private static final Logger LOGGER = ULog.getLogger("CerebraService");
 
     private MasterContext mMasterContext;
@@ -72,7 +72,6 @@ public class CerebraService extends Service {
     private MotionManager mMotionManager;
     private MasterInteractor mMasterInteractor;
     private SkillsProxy mSkillsProxy;
-    private CompetitionSession mSession;
 
     private CompositeDisposable mCompositeDisposable = new CompositeDisposable();
 
@@ -124,16 +123,17 @@ public class CerebraService extends Service {
         return mContentProviderHelper.getRobotSystemConfig();
     }
 
-    private void turnToCustomer(WakeupEvent wakeupEvent,
-                                RobotSystemConfig robotSystemConfig) {
+    private Completable turnToCustomer(WakeupEvent wakeupEvent,
+                                       RobotSystemConfig robotSystemConfig) {
 
         if (!robotSystemConfig.getWakeupConfig().isRotateRobotOn()
                 || wakeupEvent.getType() != TYPE_VOICE) {
-            return;
+
+            return Completable.complete();
         }
 
-        Disposable disposable = new ObservableFromPromise<>(mMotionManager.getJointAngle("HeadYaw"))
-                .subscribe(angle -> {
+        return new ObservableFromPromise<>(mMotionManager.getJointAngle("HeadYaw"))
+                .flatMap(angle -> {
 
                     // The real angle is scaled at a delta ratio to the tech manuals.
                     float delta = 55f / 155f;
@@ -148,42 +148,36 @@ public class CerebraService extends Service {
                     LOGGER.i("TurnToCustomer, Yaw angle:" + angle);
                     LOGGER.i("TurnToCustomer, loco angle:" + angleLocomoter);
 
-                    if(Math.abs(angleYawTurn) < WAKE_UP_TURN_RANGE && Math.abs(angleLocomoter) < 30) {
-                        return;
+                    if (Math.abs(angleYawTurn) < WAKE_UP_TURN_RANGE
+                            && Math.abs(angleLocomoter) < 30) {
+
+                        return Observable.empty();
+
+                    } else {
+
+                        Observable obYaw = new ObservableFromProgressivePromise<>(
+                                mMotionManager
+                                        .jointRotateBy(ROBOT_YAW_ID, (-angleYawTurn), duration));
+
+                        Observable obLocoMotor = new ObservableFromPromise<>(
+                                mMotionManager
+                                        .turnBy(angleLocomoter, duration));
+
+                        return Observable.merge(obYaw, obLocoMotor);
                     }
-
-                    Disposable disposableYaw = new ObservableFromProgressivePromise<>(
-                            mMotionManager.jointRotateBy(ROBOT_YAW_ID, (-angleYawTurn), duration))
-                            .subscribeOn(Schedulers.single())
-                            .observeOn(Schedulers.single())
-                            .subscribe(o -> {
-                                    }
-                                    , throwable -> LOGGER.e(throwable));
-
-                    mCompositeDisposable.add(disposableYaw);
-
-                    Disposable disposableMotion = new ObservableFromPromise<>(
-                            mMotionManager.turnBy(angleLocomoter, duration))
-                            .subscribeOn(Schedulers.single())
-                            .observeOn(Schedulers.single())
-                            .subscribe(o -> {
-                                    }
-                                    , throwable -> LOGGER.e(throwable));
-
-                    mCompositeDisposable.add(disposableMotion);
-
-                }, throwable -> LOGGER.e(throwable));
-
-        mCompositeDisposable.add(disposable);
+                })
+                .ignoreElements()
+                .doOnError(throwable -> LOGGER.e(throwable))
+                .onErrorComplete();
 
     }
 
-    private Observable playWakeupNotification(WakeupEvent wakeupEvent,
-                                              RobotSystemConfig robotSystemConfig) {
-        RobotSystemConfig.WakeupConfig.WakeupRingConfig wakeupRingConfig =
-                robotSystemConfig.getWakeupConfig().getWakeupRingConfig(wakeupEvent.getType());
+    private Completable playWakeupNotification(WakeupEvent wakeupEvent,
+                                               RobotSystemConfig robotSystemConfig) {
 
-        turnToCustomer(wakeupEvent, robotSystemConfig);
+        WakeupRingConfig wakeupRingConfig = robotSystemConfig
+                .getWakeupConfig()
+                .getWakeupRingConfig(wakeupEvent.getType());
 
         switch (wakeupRingConfig.getWakeupRingType()) {
             case WAKEUP_RING_TYPE_TONE:
@@ -191,8 +185,9 @@ public class CerebraService extends Service {
             case WAKEUP_RING_TYPE_SPEECH:
                 return talk(wakeupRingConfig.getWakeupRingValue());
             case WAKEUP_RING_TYPE_NONE:
+                return Completable.complete();
             default:
-                return Observable.empty();
+                return Completable.complete();
         }
     }
 
@@ -221,22 +216,20 @@ public class CerebraService extends Service {
         }
 
         Disposable disposable = stopTTs()
-                .flatMap(o -> playWakeupNotification(wakeupEvent, robotSystemConfig))
                 .subscribeOn(Schedulers.single())
                 .observeOn(Schedulers.single())
-                .ignoreElements()
+                .andThen(turnToCustomer(wakeupEvent, robotSystemConfig))
+                .andThen(playWakeupNotification(wakeupEvent, robotSystemConfig))
                 .andThen(new ObservableFromProgressivePromise<>(mSpeechManager.recognize()))
                 .filter(progressOrDone -> progressOrDone.isDone())
                 .flatMap(progressOrDone -> dispatchEventLocally(progressOrDone.getDone()))
                 .doOnNext(recognizeResult -> sendRecognizeResultToVoiceAssistant(recognizeResult))
                 .flatMap(recognizeResult -> understand(recognizeResult))
                 .flatMap(speechInteraction -> dispatchEventOnline(speechInteraction))
-                .subscribe(o -> {
-                    LOGGER.i("Wakeup process started.");
-                }, throwable -> {
+                .doOnError(throwable -> {
                     if (throwable instanceof RecognizeException) {
                         mCompositeDisposable.add(
-                                talk(getString(R.string.i_do_not_understand_what_you_are_talking_about))
+                                talk(getString(R.string.i_do_not_know_what_you_are_talking_about))
                                         .subscribeOn(Schedulers.single())
                                         .observeOn(Schedulers.single())
                                         .subscribe());
@@ -247,6 +240,11 @@ public class CerebraService extends Service {
                                         .observeOn(Schedulers.single())
                                         .subscribe());
                     }
+                })
+                .subscribe(o -> {
+                    LOGGER.i("Wakeup process started.");
+                }, throwable -> {
+
                     LOGGER.e("Wakeup process error.");
                     LOGGER.e((Throwable) throwable);
                 }, () -> LOGGER.i("Wakeup process completed."));
@@ -256,6 +254,7 @@ public class CerebraService extends Service {
 
 
     private void sendRecognizeResultToVoiceAssistant(Recognizer.RecognizeResult recognizeResult) {
+
         LOGGER.i("Send RecognizeResult To VoiceAssistant");
 
         // The stream continues no mather whether calling voice assistant succeed or not.
@@ -265,7 +264,6 @@ public class CerebraService extends Service {
                     @Override
                     public void onResponse(Request request, Response response) {
                         LOGGER.i("Send RecognizeResult To VoiceAssistant: succeed.");
-
                     }
 
                     @Override
@@ -276,14 +274,15 @@ public class CerebraService extends Service {
                 });
     }
 
-    private Observable<Recognizer.RecognizeResult> dispatchEventLocally(final Recognizer.RecognizeResult recognizeResult) {
+    private Observable<Recognizer.RecognizeResult> dispatchEventLocally(
+            final Recognizer.RecognizeResult recognizeResult) {
 
         SkillIntent skillIntent = new SkillIntent(SkillIntent.CATEGORY_SPEECH);
         skillIntent.setSpeechUtterance(recognizeResult.getText());
 
-        Observable<Recognizer.RecognizeResult> observable = Observable.create(emitter -> {
-            try {
+        return Observable.create(emitter -> {
 
+            try {
                 Response response = mSkillsProxy.call(skillIntent);
                 LOGGER.i("Calling skill succeeded." + response.toString());
                 emitter.onComplete();
@@ -299,17 +298,19 @@ public class CerebraService extends Service {
                 }
             }
         });
-
-        return observable;
     }
 
-    private Observable<SpeechInteraction> understand(final Recognizer.RecognizeResult recognizeResult) {
+    private Observable<SpeechInteraction> understand(
+            final Recognizer.RecognizeResult recognizeResult) {
+
         LOGGER.i("recognizeResult.getText():" + recognizeResult.getText());
 
         UnderstandOption.Builder builderOpt = new UnderstandOption.Builder();
         builderOpt.appendStringParam("city", "深圳市");
 
-        return new ObservableFromPromise<>(mSpeechManager.understand(recognizeResult.getText(), builderOpt.build()))
+        return new ObservableFromPromise<>(
+                mSpeechManager
+                        .understand(recognizeResult.getText(), builderOpt.build()))
                 .map(understandResult -> {
                     SpeechInteraction.Builder builder = new SpeechInteraction.Builder();
                     builder.setRecognizeResult(recognizeResult);
@@ -319,6 +320,7 @@ public class CerebraService extends Service {
     }
 
     private Observable dispatchEventOnline(SpeechInteraction speechInteraction) {
+
         return Observable.create((ObservableOnSubscribe<UnderstandResult>) emitter -> {
 
             String action = speechInteraction.getUnderstandResult().getIntent().getName();
@@ -326,7 +328,9 @@ public class CerebraService extends Service {
 
             try {
 
-                Response response = mSkillsProxy.call(action, ParcelableParam.create(speechInteraction));
+                Response response = mSkillsProxy.call(action,
+                        ParcelableParam.create(speechInteraction));
+
                 LOGGER.i("Calling skill succeeded." + response.toString());
                 emitter.onComplete();
             } catch (CallException e) {
@@ -337,7 +341,9 @@ public class CerebraService extends Service {
                 if (CallGlobalCode.NOT_FOUND != e.getCode()) {
                     emitter.onError(e);
                 } else {
-                    Response response = mSkillsProxy.call(CHAT_SKILL_UNDERSTAND, ParcelableParam.create(speechInteraction));
+                    Response response = mSkillsProxy.call(CHAT_SKILL_UNDERSTAND,
+                            ParcelableParam.create(speechInteraction));
+
                     LOGGER.i("Calling chat skill succeeded." + response.toString());
                     emitter.onComplete();
                 }
@@ -345,21 +351,30 @@ public class CerebraService extends Service {
         });
     }
 
-    private Observable talk(String msg) {
+    private Completable talk(String msg) {
+
         if (!TextUtils.isEmpty(msg)) {
             LOGGER.i("Talk: " + msg);
-            return new ObservableFromProgressivePromise(mSpeechManager.synthesize(msg));
+            return new ObservableFromProgressivePromise(mSpeechManager.synthesize(msg))
+                    .ignoreElements()
+                    .doOnError(throwable -> LOGGER.e(throwable))
+                    .onErrorComplete();
         } else {
-            return Observable.empty();
+            return Completable.complete();
         }
     }
 
-    private Observable stopTTs() {
-        return new ObservableFromProgressivePromise(mSpeechManager.synthesize(" "));
+
+    private Completable stopTTs() {
+
+        return new ObservableFromProgressivePromise(mSpeechManager.synthesize(" "))
+                .ignoreElements()
+                .onErrorComplete();
     }
 
     @Override
     public void onDestroy() {
+
         stopRobotBackgroundTask();
         mToneHelper.release();
         mContentProviderHelper.release();

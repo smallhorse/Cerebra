@@ -13,21 +13,27 @@ import java.util.HashMap;
 
 public class ContentProviderUtil {
 
-    public static HashMap<String, String> getSettingsString(Context context, String settingUri, String[] selectionArgs) {
+    public static HashMap<String, String> getSettingsString(Context context,
+                                                            String settingUri,
+                                                            String[] selectionArgs) {
+
         ContentResolver cr = context.getContentResolver();
         Uri uri = Uri.parse(settingUri);
         String[] projection = {"key", "value"};
-        String selection = "key IN (";
+
+        StringBuilder builder = new StringBuilder();
+        builder.append("key IN (");
+
+        for (int i = 0; i < selectionArgs.length - 1; i++) {
+            builder.append("?,");
+        }
+        builder.append("?)");
+
         Cursor result = null;
         HashMap<String, String> rets = new HashMap<>();
 
         try {
-            for (int i = 0; i < selectionArgs.length - 1; i++) {
-                selection = selection + "?,";
-            }
-            selection = selection + "?)";
-
-            result = cr.query(uri, projection, selection, selectionArgs, null);
+            result = cr.query(uri, projection, builder.toString(), selectionArgs, null);
             if (result != null) {
                 while (result.moveToNext()) {
                     String key = result.getString(result.getColumnIndex("key"));

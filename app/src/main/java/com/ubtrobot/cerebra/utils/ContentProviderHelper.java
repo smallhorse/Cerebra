@@ -9,16 +9,16 @@ import android.support.annotation.NonNull;
 
 import com.ubtrobot.cerebra.Constant.SettingConstant;
 import com.ubtrobot.cerebra.model.RobotSystemConfig;
+import com.ubtrobot.cerebra.model.WakeupConfig;
+import com.ubtrobot.cerebra.model.WakeupRingConfig;
 import com.ubtrobot.wakeup.WakeupEvent;
 
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import io.reactivex.Observable;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.schedulers.Schedulers;
 
-import static com.ubtrobot.cerebra.Constant.SettingConstant.SETTING_CHASSIS_MOTION_STATE_KEY;
 import static com.ubtrobot.cerebra.Constant.SettingConstant.SETTING_HAND_MOTION_STATE_KEY;
 import static com.ubtrobot.cerebra.Constant.SettingConstant.SETTING_SOUND_LOCALIZATION_KEY;
 import static com.ubtrobot.cerebra.Constant.SettingConstant.SETTING_WAKEUP_FACEIN_RINGTONE_KEY;
@@ -36,7 +36,6 @@ public class ContentProviderHelper {
 
     private String[] settingKeys = {
             SETTING_HAND_MOTION_STATE_KEY,
-            SETTING_CHASSIS_MOTION_STATE_KEY,
             SETTING_SOUND_LOCALIZATION_KEY,
             SETTING_WAKEUP_SPEECH_RINGTONE_KEY,
             SETTING_WAKEUP_KEY_RINGTONE_KEY,
@@ -56,7 +55,7 @@ public class ContentProviderHelper {
         @Override
         public void onChange(boolean selfChange) {
             super.onChange(selfChange);
-            refresh();
+            refreshAsync();
         }
     };
 
@@ -67,44 +66,45 @@ public class ContentProviderHelper {
         Uri uri = Uri.parse(SettingConstant.SETTING_URI);
         mContentResolver.registerContentObserver(uri, true, mContentObserver);
 
-        refresh();
+        fetchData();
     }
 
-    private void refresh() {
-        int defaultType = RobotSystemConfig.WakeupConfig.WakeupRingConfig.WAKEUP_RING_TYPE_TONE;
+    private void fetchData() {
+        int defaultType = WakeupRingConfig.WAKEUP_RING_TYPE_TONE;
         boolean defaultSwitch = false;
 
+        Map<String, String> map = ContentProviderUtil.getSettingsString(mContext,
+                SettingConstant.SETTING_URI, settingKeys);
+
+        // Get wakeup configure
+        WakeupConfig config = mRobotSystemConfig.getWakeupConfig();
+        config.setRotateRobotOn(StringUtil.strToBool(
+                map.get(SETTING_SOUND_LOCALIZATION_KEY), defaultSwitch));
+
+        WakeupRingConfig wakeupRingConfig;
+
+        wakeupRingConfig = config.getWakeupRingConfig(WakeupEvent.TYPE_VOICE);
+        wakeupRingConfig.setWakeupRingType(StringUtil.strToInt(
+                map.get(SETTING_WAKEUP_SPEECH_RINGTONE_TYPE_KEY), defaultType));
+        wakeupRingConfig.setWakeupRingValue(map.get(SETTING_WAKEUP_SPEECH_RINGTONE_KEY));
+
+        wakeupRingConfig = config.getWakeupRingConfig(WakeupEvent.TYPE_SIMULATE); //key
+        wakeupRingConfig.setWakeupRingType(StringUtil.strToInt
+                (map.get(SETTING_WAKEUP_KEY_RINGTONE_TYPE_KEY), defaultType));
+        wakeupRingConfig.setWakeupRingValue(map.get(SETTING_WAKEUP_KEY_RINGTONE_KEY));
+
+        wakeupRingConfig = config.getWakeupRingConfig(WakeupEvent.TYPE_VISION); //vison
+        wakeupRingConfig.setWakeupRingType(StringUtil.strToInt(
+                map.get(SETTING_WAKEUP_FACEIN_RINGTONE_TYPE_KEY), defaultType));
+        wakeupRingConfig.setWakeupRingValue(map.get(SETTING_WAKEUP_FACEIN_RINGTONE_KEY));
+    }
+
+    private void refreshAsync() {
         mDisposable = Observable
                 .create(emitter -> {
-                    Map<String, String> map = ContentProviderUtil.getSettingsString(mContext,
-                            SettingConstant.SETTING_URI, settingKeys);
-
-                    // Get wakeup configure
-                    RobotSystemConfig.WakeupConfig config = mRobotSystemConfig.getWakeupConfig();
-                    config.setRotateRobotOn(StringUtil.strToBool(
-                            map.get(SETTING_CHASSIS_MOTION_STATE_KEY), defaultSwitch));
-
-                    RobotSystemConfig.WakeupConfig.WakeupRingConfig wakeupRingConfig;
-
-                    wakeupRingConfig = config.getWakeupRingConfig(WakeupEvent.TYPE_VOICE);
-                    wakeupRingConfig.setWakeupRingType(StringUtil.strToInt(
-                            map.get(SETTING_WAKEUP_SPEECH_RINGTONE_TYPE_KEY), defaultType));
-                    wakeupRingConfig.setWakeupRingValue(map.get(SETTING_WAKEUP_SPEECH_RINGTONE_KEY));
-
-                    wakeupRingConfig = config.getWakeupRingConfig(WakeupEvent.TYPE_SIMULATE); //key
-                    wakeupRingConfig.setWakeupRingType(StringUtil.strToInt
-                            (map.get(SETTING_WAKEUP_KEY_RINGTONE_TYPE_KEY), defaultType));
-                    wakeupRingConfig.setWakeupRingValue(map.get(SETTING_WAKEUP_KEY_RINGTONE_KEY));
-
-                    wakeupRingConfig = config.getWakeupRingConfig(WakeupEvent.TYPE_VISION); //vison
-                    wakeupRingConfig.setWakeupRingType(StringUtil.strToInt(
-                            map.get(SETTING_WAKEUP_FACEIN_RINGTONE_TYPE_KEY), defaultType));
-                    wakeupRingConfig.setWakeupRingValue(map.get(SETTING_WAKEUP_FACEIN_RINGTONE_KEY));
-
+                    fetchData();
                     emitter.onComplete();
-
                 })
-//                .throttleLast(1, TimeUnit.SECONDS)
                 .subscribeOn(Schedulers.single())
                 .subscribe();
     }

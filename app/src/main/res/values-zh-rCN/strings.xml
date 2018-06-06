@@ -1,5 +1,5 @@
 <resources>
     <string name="app_name">Cerebra</string>
     <string name="system_failure">内部故障</string>
-    <string name="i_do_not_understand_what_you_are_talking_about">我不能理解你说的是什么</string>
+    <string name="i_do_not_know_what_you_are_talking_about">我不知道你说的是什么</string>
 </resources>
