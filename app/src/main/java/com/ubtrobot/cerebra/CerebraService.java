@@ -6,6 +6,9 @@ import android.os.IBinder;
 import android.text.TextUtils;
 
 import com.ubtrobot.Robot;
+import com.ubtrobot.async.DoneCallback;
+import com.ubtrobot.async.FailCallback;
+import com.ubtrobot.async.Promise;
 import com.ubtrobot.async.rx.ObservableFromProgressivePromise;
 import com.ubtrobot.async.rx.ObservableFromPromise;
 import com.ubtrobot.cerebra.model.RobotSystemConfig;
@@ -37,6 +40,7 @@ import com.ubtrobot.wakeup.WakeupEvent;
 import io.reactivex.Completable;
 import io.reactivex.Observable;
 import io.reactivex.ObservableOnSubscribe;
+import io.reactivex.Observer;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.schedulers.Schedulers;
@@ -126,7 +130,7 @@ public class CerebraService extends Service {
     private Completable turnToCustomer(WakeupEvent wakeupEvent,
                                        RobotSystemConfig robotSystemConfig) {
 
-        if (!robotSystemConfig.getWakeupConfig().isRotateRobotOn()
+        if (!robotSystemConfig.getWakeupConfig().isRotateRobotEnabled()
                 || wakeupEvent.getType() != TYPE_VOICE) {
 
             return Completable.complete();
@@ -220,9 +224,8 @@ public class CerebraService extends Service {
                 .observeOn(Schedulers.single())
                 .andThen(turnToCustomer(wakeupEvent, robotSystemConfig))
                 .andThen(playWakeupNotification(wakeupEvent, robotSystemConfig))
-                .andThen(new ObservableFromProgressivePromise<>(mSpeechManager.recognize()))
-                .filter(progressOrDone -> progressOrDone.isDone())
-                .flatMap(progressOrDone -> dispatchEventLocally(progressOrDone.getDone()))
+                .andThen(startSpeechRecognization())
+                .flatMap(recognizeResult -> dispatchEventLocally(recognizeResult))
                 .doOnNext(recognizeResult -> sendRecognizeResultToVoiceAssistant(recognizeResult))
                 .flatMap(recognizeResult -> understand(recognizeResult))
                 .flatMap(speechInteraction -> dispatchEventOnline(speechInteraction))
@@ -250,6 +253,47 @@ public class CerebraService extends Service {
                 }, () -> LOGGER.i("Wakeup process completed."));
 
         mCompositeDisposable.add(disposable);
+    }
+
+    private Observable<Recognizer.RecognizeResult>
+    startSpeechRecognization() {
+
+        return new Observable<Recognizer.RecognizeResult>() {
+
+            @Override
+            protected void subscribeActual(Observer<? super Recognizer.RecognizeResult> observer) {
+                Promise promise = mSpeechManager.recognize();
+                LOGGER.i("Start Speech Recognization");
+
+                observer.onSubscribe(new Disposable() {
+                    @Override
+                    public void dispose() {
+                        if (promise != null && !promise.isCanceled()) {
+                            promise.cancel();
+                        }
+                    }
+
+                    @Override
+                    public boolean isDisposed() {
+                        return promise.isCanceled();
+                    }
+                });
+
+                promise.done(new DoneCallback<Recognizer.RecognizeResult>() {
+
+                    @Override
+                    public void onDone(Recognizer.RecognizeResult recognizeResult) {
+                        observer.onNext(recognizeResult);
+                    }
+                }).fail(new FailCallback<Throwable>() {
+                    @Override
+                    public void onFail(Throwable throwable) {
+                        observer.onError(throwable);
+                    }
+                });
+            }
+        };
+
     }
 
 
