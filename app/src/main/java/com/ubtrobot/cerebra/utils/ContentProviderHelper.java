@@ -21,6 +21,7 @@ import io.reactivex.schedulers.Schedulers;
 
 import static com.ubtrobot.cerebra.Constant.SettingConstant.SETTING_HAND_MOTION_STATE_KEY;
 import static com.ubtrobot.cerebra.Constant.SettingConstant.SETTING_SOUND_LOCALIZATION_KEY;
+import static com.ubtrobot.cerebra.Constant.SettingConstant.SETTING_VISUAL_WAKEUP_STATE_KEY;
 import static com.ubtrobot.cerebra.Constant.SettingConstant.SETTING_WAKEUP_FACEIN_RINGTONE_KEY;
 import static com.ubtrobot.cerebra.Constant.SettingConstant.SETTING_WAKEUP_FACEIN_RINGTONE_TYPE_KEY;
 import static com.ubtrobot.cerebra.Constant.SettingConstant.SETTING_WAKEUP_KEY_RINGTONE_KEY;
@@ -38,6 +39,7 @@ public class ContentProviderHelper {
             SETTING_HAND_MOTION_STATE_KEY,
             SETTING_SOUND_LOCALIZATION_KEY,
             SETTING_WAKEUP_SPEECH_RINGTONE_KEY,
+            SETTING_VISUAL_WAKEUP_STATE_KEY,
             SETTING_WAKEUP_KEY_RINGTONE_KEY,
             SETTING_WAKEUP_FACEIN_RINGTONE_KEY,
             SETTING_WAKEUP_SPEECH_RINGTONE_TYPE_KEY,
@@ -78,8 +80,12 @@ public class ContentProviderHelper {
 
         // Get wakeup configure
         WakeupConfig config = mRobotSystemConfig.getWakeupConfig();
-        config.setRotateRobotOn(StringUtil.strToBool(
+
+        config.setRotateRobotEnabled(StringUtil.strToBool(
                 map.get(SETTING_SOUND_LOCALIZATION_KEY), defaultSwitch));
+
+        config.setRotateRobotEnabled(StringUtil.strToBool(
+                map.get(SETTING_VISUAL_WAKEUP_STATE_KEY), defaultSwitch));
 
         WakeupRingConfig wakeupRingConfig;
 

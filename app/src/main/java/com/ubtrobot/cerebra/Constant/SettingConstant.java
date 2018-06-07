@@ -12,6 +12,9 @@ public class SettingConstant {
     // A switch that enables hand
     public static final String SETTING_HAND_MOTION_STATE_KEY = "cruiser_hand_motion_state";
 
+    // A switch that enables Visual Wakeup
+    public static final String SETTING_VISUAL_WAKEUP_STATE_KEY = "visual_wakeup_state";
+
     // A switch that enables chassis movement
     public static final String SETTING_CHASSIS_MOTION_STATE_KEY = "cruiser_chassis_motion_state";
 

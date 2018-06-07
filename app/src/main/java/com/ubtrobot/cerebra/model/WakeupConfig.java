@@ -9,7 +9,8 @@ public class WakeupConfig {
 
     private Map<Integer, WakeupRingConfig> wakeupRingConfigs = new HashMap<>();
 
-    private boolean isRotateRobotOn = false;
+    private boolean isRotateRobotEnabled = false;
+    private boolean isVisualWakeUpEnabled = false;
 
     public WakeupConfig() {
         wakeupRingConfigs.put(WakeupEvent.TYPE_VOICE, new WakeupRingConfig());
@@ -27,12 +28,19 @@ public class WakeupConfig {
         return wakeupRingConfigs.get(wakeupType);
     }
 
-    public boolean isRotateRobotOn() {
-        return isRotateRobotOn;
+    public boolean isRotateRobotEnabled() {
+        return isRotateRobotEnabled;
     }
 
-    public void setRotateRobotOn(boolean rotateRobotOn) {
-        this.isRotateRobotOn = rotateRobotOn;
+    public void setRotateRobotEnabled(boolean rotateRobotEnabled) {
+        this.isRotateRobotEnabled = rotateRobotEnabled;
     }
 
+    public boolean isVisualWakeUpEnabled() {
+        return isVisualWakeUpEnabled;
+    }
+
+    public void setVisualWakeUpEnabled(boolean visualWakeUpEnabled) {
+        isVisualWakeUpEnabled = visualWakeUpEnabled;
+    }
 }

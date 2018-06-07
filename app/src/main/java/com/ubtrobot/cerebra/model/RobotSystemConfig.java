@@ -12,6 +12,7 @@ import java.util.Map;
 public class RobotSystemConfig {
 
     private boolean isPowerOffMode = false;
+
     private WakeupConfig wakeupConfig = new WakeupConfig();
 
     public void setPowerOffMode(boolean powerOffMode) {
