@@ -84,7 +84,7 @@ public class ContentProviderHelper {
         config.setRotateRobotEnabled(StringUtil.strToBool(
                 map.get(SETTING_SOUND_LOCALIZATION_KEY), defaultSwitch));
 
-        config.setRotateRobotEnabled(StringUtil.strToBool(
+        config.setVisualWakeUpEnabled(StringUtil.strToBool(
                 map.get(SETTING_VISUAL_WAKEUP_STATE_KEY), defaultSwitch));
 
         WakeupRingConfig wakeupRingConfig;
