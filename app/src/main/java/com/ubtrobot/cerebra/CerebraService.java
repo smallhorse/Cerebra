@@ -96,6 +96,7 @@ public class CerebraService extends Service {
         mToneHelper = new ToneHelper(this);
         mContentProviderHelper = new ContentProviderHelper(this);
 
+        LocationHelper.getInstance().requestLocation();
     }
 
     @Override

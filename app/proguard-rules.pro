@@ -19,3 +19,15 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+
+# For tencent LBS
+-keepclassmembers class ** {
+    public void on*Event(...);
+}
+-keep class c.t.**{*;}
+-keep class com.tencent.map.geolocation.**{*;}
+-keep class com.tencent.tencentmap.lbssdk.service.**{*;}
+
+-dontwarn  org.eclipse.jdt.annotation.**
+-dontwarn  c.t.**

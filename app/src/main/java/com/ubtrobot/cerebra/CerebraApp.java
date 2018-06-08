@@ -12,9 +12,14 @@ import com.ubtrobot.ulog.logger.android.AndroidLoggerFactory;
  *
  */
 public class CerebraApp extends Application {
+
+    private static CerebraApp mApp;
+
     @Override
     public void onCreate() {
         super.onCreate();
+
+        mApp = CerebraApp.this;
 
         // Init
         Robot.initialize(this);
@@ -23,5 +28,9 @@ public class CerebraApp extends Application {
 
         // Print debug log
         Robot.setLoggerFactory(loggerFactory);
+    }
+
+    public static CerebraApp getInstance() {
+        return mApp;
     }
 }
