@@ -14,6 +14,7 @@ import com.ubtrobot.async.rx.ObservableFromPromise;
 import com.ubtrobot.cerebra.model.RobotSystemConfig;
 import com.ubtrobot.cerebra.model.WakeupRingConfig;
 import com.ubtrobot.cerebra.utils.ContentProviderHelper;
+import com.ubtrobot.cerebra.utils.LocationHelper;
 import com.ubtrobot.cerebra.utils.ToneHelper;
 import com.ubtrobot.exception.AccessServiceException;
 import com.ubtrobot.master.context.MasterContext;
@@ -94,6 +95,7 @@ public class CerebraService extends Service {
 
         mToneHelper = new ToneHelper(this);
         mContentProviderHelper = new ContentProviderHelper(this);
+
     }
 
     @Override
@@ -112,87 +114,6 @@ public class CerebraService extends Service {
     @Override
     public IBinder onBind(Intent intent) {
         return null;
-    }
-
-    private void stopRobotBackgroundTask() {
-        mCompositeDisposable.clear();
-    }
-
-    /**
-     * Get Robot System Configure from another apk.
-     *
-     * @return Current system configure
-     */
-    private RobotSystemConfig getRobotSystemConfig() {
-        return mContentProviderHelper.getRobotSystemConfig();
-    }
-
-    private Completable turnToCustomer(WakeupEvent wakeupEvent,
-                                       RobotSystemConfig robotSystemConfig) {
-
-        if (!robotSystemConfig.getWakeupConfig().isRotateRobotEnabled()
-                || wakeupEvent.getType() != TYPE_VOICE) {
-
-            return Completable.complete();
-        }
-
-        return new ObservableFromPromise<>(mMotionManager.getJointAngle("HeadYaw"))
-                .flatMap(angle -> {
-
-                    // The real angle is scaled at a delta ratio to the tech manuals.
-                    float delta = 55f / 155f;
-                    float angleYawTurn = angle - 180;
-                    float angleLocomoter = angleYawTurn * delta + wakeupEvent.getAngle();
-
-                    long d0 = (long) (Math.abs(angleLocomoter / 70) * 1000);
-                    long d1 = (long) (Math.abs(angleYawTurn / 70) * 1000);
-                    long duration = Math.max(d0, d1);
-
-                    LOGGER.i("TurnToCustomer, wakeup angle:" + wakeupEvent.getAngle());
-                    LOGGER.i("TurnToCustomer, Yaw angle:" + angle);
-                    LOGGER.i("TurnToCustomer, loco angle:" + angleLocomoter);
-
-                    if (Math.abs(angleYawTurn) < WAKE_UP_TURN_RANGE
-                            && Math.abs(angleLocomoter) < 30) {
-
-                        return Observable.empty();
-
-                    } else {
-
-                        Observable obYaw = new ObservableFromProgressivePromise<>(
-                                mMotionManager
-                                        .jointRotateBy(ROBOT_YAW_ID, (-angleYawTurn), duration));
-
-                        Observable obLocoMotor = new ObservableFromPromise<>(
-                                mMotionManager
-                                        .turnBy(angleLocomoter, duration));
-
-                        return Observable.merge(obYaw, obLocoMotor);
-                    }
-                })
-                .ignoreElements()
-                .doOnError(throwable -> LOGGER.e(throwable))
-                .onErrorComplete();
-
-    }
-
-    private Completable playWakeupNotification(WakeupEvent wakeupEvent,
-                                               RobotSystemConfig robotSystemConfig) {
-
-        WakeupRingConfig wakeupRingConfig = robotSystemConfig
-                .getWakeupConfig()
-                .getWakeupRingConfig(wakeupEvent.getType());
-
-        switch (wakeupRingConfig.getWakeupRingType()) {
-            case WAKEUP_RING_TYPE_TONE:
-                return mToneHelper.play(wakeupRingConfig.getWakeupRingValue());
-            case WAKEUP_RING_TYPE_SPEECH:
-                return talk(wakeupRingConfig.getWakeupRingValue());
-            case WAKEUP_RING_TYPE_NONE:
-                return Completable.complete();
-            default:
-                return Completable.complete();
-        }
     }
 
     private void handleWakeupEvent(WakeupEvent wakeupEvent) {
@@ -246,6 +167,8 @@ public class CerebraService extends Service {
                 })
                 .subscribe(o -> {
                     LOGGER.i("Wakeup process started.");
+                    LOGGER.e("Subscribe");
+
                 }, throwable -> {
 
                     LOGGER.e("Wakeup process error.");
@@ -255,14 +178,132 @@ public class CerebraService extends Service {
         mCompositeDisposable.add(disposable);
     }
 
-    private Observable<Recognizer.RecognizeResult>
-    startSpeechRecognization() {
 
-        return new Observable<Recognizer.RecognizeResult>() {
+    private void stopRobotBackgroundTask() {
+        mCompositeDisposable.clear();
+    }
+
+
+    /**
+     * Get Robot System Configure from another apk.
+     *
+     * @return Current system configure
+     */
+    private RobotSystemConfig getRobotSystemConfig() {
+        return mContentProviderHelper.getRobotSystemConfig();
+    }
+
+
+    private Completable turnToCustomer(WakeupEvent wakeupEvent,
+                                       RobotSystemConfig robotSystemConfig) {
+
+        if (!robotSystemConfig.getWakeupConfig().isRotateRobotEnabled()
+                || wakeupEvent.getType() != TYPE_VOICE) {
+
+            return Completable.complete();
+        }
+
+        return getYawAngle()
+                .flatMapCompletable(angle -> {
+
+                    // The real angle is scaled at a delta ratio to the tech manuals.
+                    float delta = 55f / 155f;
+                    float angleYawTurn = angle - 180;
+                    float angleLocomoter = angleYawTurn * delta + wakeupEvent.getAngle();
+
+                    long d0 = (long) (Math.abs(angleLocomoter / 70) * 1000);
+                    long d1 = (long) (Math.abs(angleYawTurn / 70) * 1000);
+                    long duration = Math.max(d0, d1);
+
+                    LOGGER.i("TurnToCustomer, wakeup angle:" + wakeupEvent.getAngle());
+                    LOGGER.i("TurnToCustomer, Yaw angle:" + angle);
+                    LOGGER.i("TurnToCustomer, loco angle:" + angleLocomoter);
+
+                    if (Math.abs(angleYawTurn) < WAKE_UP_TURN_RANGE
+                            && Math.abs(angleLocomoter) < 30) {
+
+                        return Completable.complete();
+                    } else {
+
+                        Completable cpYaw = RotateYaw(-angleYawTurn, duration);
+
+                        Completable cpLocoMotor = RotateLocoMotor(angleLocomoter, duration);
+
+                        return cpYaw.mergeWith(cpLocoMotor);
+
+                    }
+                })
+                .doOnError(throwable -> LOGGER.e(throwable))
+                .onErrorComplete();
+    }
+
+    private Completable playWakeupNotification(WakeupEvent wakeupEvent,
+                                               RobotSystemConfig robotSystemConfig) {
+
+        WakeupRingConfig wakeupRingConfig = robotSystemConfig
+                .getWakeupConfig()
+                .getWakeupRingConfig(wakeupEvent.getType());
+
+        switch (wakeupRingConfig.getWakeupRingType()) {
+            case WAKEUP_RING_TYPE_TONE:
+                return mToneHelper.play(wakeupRingConfig.getWakeupRingValue());
+            case WAKEUP_RING_TYPE_SPEECH:
+                return talk(wakeupRingConfig.getWakeupRingValue());
+            case WAKEUP_RING_TYPE_NONE:
+                return Completable.complete();
+            default:
+                return Completable.complete();
+        }
+    }
+
+    private Observable<Recognizer.RecognizeResult> startSpeechRecognization() {
+
+        return Observable.create(emitter -> {
+            Promise promise = mSpeechManager.recognize();
+            LOGGER.i("Start Speech Recognization");
+
+            emitter.setDisposable(new Disposable() {
+                @Override
+                public void dispose() {
+                    if (promise != null && !promise.isCanceled()) {
+                        promise.cancel();
+                    }
+                }
+
+                @Override
+                public boolean isDisposed() {
+                    return promise.isCanceled();
+                }
+            });
+
+            promise.done(new DoneCallback<Recognizer.RecognizeResult>() {
+
+                @Override
+                public void onDone(Recognizer.RecognizeResult recognizeResult) {
+                    if (!emitter.isDisposed()) {
+                        emitter.onNext(recognizeResult);
+                    }
+                }
+            }).fail(new FailCallback<Throwable>() {
+                @Override
+                public void onFail(Throwable throwable) {
+                    if (!emitter.isDisposed()) {
+                        emitter.onError(throwable);
+                    }
+                }
+            });
+
+        });
+
+    }
+
+    private Observable<Float> getYawAngle() {
+
+        return new Observable<Float>() {
 
             @Override
-            protected void subscribeActual(Observer<? super Recognizer.RecognizeResult> observer) {
-                Promise promise = mSpeechManager.recognize();
+            protected void subscribeActual(Observer<? super Float> observer) {
+                Promise promise = mMotionManager.getJointAngle("HeadYaw");
                 LOGGER.i("Start Speech Recognization");
 
                 observer.onSubscribe(new Disposable() {
@@ -279,11 +320,11 @@ public class CerebraService extends Service {
                     }
                 });
 
-                promise.done(new DoneCallback<Recognizer.RecognizeResult>() {
+                promise.done(new DoneCallback<Float>() {
 
                     @Override
-                    public void onDone(Recognizer.RecognizeResult recognizeResult) {
-                        observer.onNext(recognizeResult);
+                    public void onDone(Float f) {
+                        observer.onNext(f);
                     }
                 }).fail(new FailCallback<Throwable>() {
                     @Override
@@ -293,9 +334,85 @@ public class CerebraService extends Service {
                 });
             }
         };
-
     }
 
+
+    private Completable RotateLocoMotor(Float angle, long duration) {
+
+        return Completable.create(emitter -> {
+            Promise promise = mMotionManager.turnBy(angle, duration);
+            LOGGER.i("Start rotate locoMotor");
+
+            promise.done(new DoneCallback() {
+                @Override
+                public void onDone(Object o) {
+                    if (!emitter.isDisposed()) {
+                        emitter.onComplete();
+                    }
+                }
+            }).fail(new FailCallback<Throwable>() {
+                @Override
+                public void onFail(Throwable t) {
+                    if (!emitter.isDisposed()) {
+                        emitter.onError(t);
+                    }
+                }
+            });
+            emitter.setDisposable(new Disposable() {
+                @Override
+                public void dispose() {
+                    if (promise != null && !promise.isCanceled()) {
+                        promise.cancel();
+                    }
+                }
+
+                @Override
+                public boolean isDisposed() {
+                    return promise.isCanceled();
+                }
+            });
+        });
+    }
+
+
+    private Completable RotateYaw(Float angle, long duration) {
+
+        return Completable.create(emitter -> {
+            LOGGER.i("Start rotate Yaw");
+
+            Promise promise = mMotionManager.jointRotateBy(ROBOT_YAW_ID, angle, duration);
+
+            promise.done(new DoneCallback() {
+                @Override
+                public void onDone(Object o) {
+                    if (!emitter.isDisposed()) {
+                        emitter.onComplete();
+                    }
+                }
+            }).fail(new FailCallback<Throwable>() {
+                @Override
+                public void onFail(Throwable t) {
+                    if (!emitter.isDisposed()) {
+                        emitter.onError(t);
+                    }
+                }
+            });
+            emitter.setDisposable(new Disposable() {
+                @Override
+                public void dispose() {
+                    if (promise != null && !promise.isCanceled()) {
+                        promise.cancel();
+                    }
+                }
+
+                @Override
+                public boolean isDisposed() {
+                    return promise.isCanceled();
+                }
+            });
+        });
+
+    }
 
     private void sendRecognizeResultToVoiceAssistant(Recognizer.RecognizeResult recognizeResult) {
 
@@ -350,7 +467,7 @@ public class CerebraService extends Service {
         LOGGER.i("recognizeResult.getText():" + recognizeResult.getText());
 
         UnderstandOption.Builder builderOpt = new UnderstandOption.Builder();
-        builderOpt.appendStringParam("city", "深圳市");
+        builderOpt.appendStringParam("city", LocationHelper.getInstance().getLocation());
 
         return new ObservableFromPromise<>(
                 mSpeechManager
