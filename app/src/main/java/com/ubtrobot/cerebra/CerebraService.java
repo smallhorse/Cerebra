@@ -283,6 +283,7 @@ public class CerebraService extends Service {
                 public void onDone(Recognizer.RecognizeResult recognizeResult) {
                     if (!emitter.isDisposed()) {
                         emitter.onNext(recognizeResult);
+                        emitter.onComplete();
                     }
                 }
             }).fail(new FailCallback<Throwable>() {
@@ -326,6 +327,7 @@ public class CerebraService extends Service {
                     @Override
                     public void onDone(Float f) {
                         observer.onNext(f);
+                        observer.onComplete();
                     }
                 }).fail(new FailCallback<Throwable>() {
                     @Override
