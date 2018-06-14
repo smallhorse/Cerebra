@@ -20,6 +20,7 @@
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
 
+-keep class com.ubtrobot.cerebra.model.**{*;}
 
 # For tencent LBS
 -keepclassmembers class ** {

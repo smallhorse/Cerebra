@@ -1,10 +1,5 @@
 package com.ubtrobot.cerebra.model;
 
-import com.ubtrobot.wakeup.WakeupEvent;
-
-import java.util.HashMap;
-import java.util.Map;
-
 /**
  * System configure of this robot, whose data are provided by other apk.
  */

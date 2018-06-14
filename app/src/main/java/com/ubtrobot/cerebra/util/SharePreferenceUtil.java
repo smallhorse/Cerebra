@@ -1,9 +1,7 @@
-package com.ubtrobot.cerebra.utils;
+package com.ubtrobot.cerebra.util;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.preference.PreferenceManager;
-
 
 
 public class SharePreferenceUtil {

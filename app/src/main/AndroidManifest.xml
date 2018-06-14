@@ -20,9 +20,12 @@
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
     <!-- 访问手机当前状态, 需要某些信息用于网络定位 -->
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <!-- 自启动 -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+
 
     <application
-        android:name=".CerebraApp"
+        android:name=".other.CerebraApp"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -35,12 +38,12 @@
             android:enabled="true"
             android:exported="true"></service>
 
-        <service android:name=".WakeupEventReceiver">
+        <receiver android:name=".other.WakeupEventReceiver">
             <intent-filter>
-                <category android:name="master.intent.category.SUBSCRIBER" />
-                <action android:name="com.ubtrobot.event.action.WAKEUP" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="com.ubtechinc.cruzr.coreservices.ACTION.WAKEUP_SPEECH" />
             </intent-filter>
-        </service>
+        </receiver>
 
         <!-- 腾讯定位密钥 -->
         <meta-data

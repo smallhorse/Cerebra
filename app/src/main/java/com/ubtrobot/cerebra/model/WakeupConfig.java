@@ -1,7 +1,5 @@
 package com.ubtrobot.cerebra.model;
 
-import com.ubtrobot.wakeup.WakeupEvent;
-
 import java.util.HashMap;
 import java.util.Map;
 
@@ -10,12 +8,16 @@ public class WakeupConfig {
     private Map<Integer, WakeupRingConfig> wakeupRingConfigs = new HashMap<>();
 
     private boolean isRotateRobotEnabled = false;
+
+    /**
+     * It equals to the Continuous Speech Mode, in which speech recognize stops passively.
+     */
     private boolean isVisualWakeUpEnabled = false;
 
     public WakeupConfig() {
         wakeupRingConfigs.put(WakeupEvent.TYPE_VOICE, new WakeupRingConfig());
-        wakeupRingConfigs.put(WakeupEvent.TYPE_SIMULATE, new WakeupRingConfig());
-        wakeupRingConfigs.put(WakeupEvent.TYPE_VISION, new WakeupRingConfig());
+        wakeupRingConfigs.put(WakeupEvent.TYPE_KEY, new WakeupRingConfig());
+        wakeupRingConfigs.put(WakeupEvent.TYPE_HUMAN_IN, new WakeupRingConfig());
     }
 
     /**

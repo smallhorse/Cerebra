@@ -17,30 +17,54 @@ android {
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        release {
+            storeFile file('cruzr.keystore')
+            storePassword 'UBT_Cruzr_2017'
+            keyAlias 'cruzrandoridkey'
+            keyPassword 'UBT_Cruzr_2017'
+        }
+        debug {
+            storeFile file('cruzr.keystore')
+            storePassword 'UBT_Cruzr_2017'
+            keyAlias 'cruzrandoridkey'
+            keyPassword 'UBT_Cruzr_2017'
+        }
+    }
+
     buildTypes {
         release {
+
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
+        }
+        debug {
+            signingConfig signingConfigs.debug
         }
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
+
 }
 
 dependencies {
-    implementation fileTree(dir: 'libs', include: ['*.jar'])
-
     def deps = rootProject.ext.deps
+
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
     implementation deps.appcompat
     implementation deps.design
     implementation deps.constraintLayout
 
-    api deps.platformcruzr
+    implementation deps.platformcruzr
     implementation deps.ulogAndroid
     implementation deps.ulog
     implementation deps.rx2Async
+    implementation deps.rxJava
+    implementation deps.rxAndroid
+    implementation deps.rxRelay
 
     testImplementation deps.junit
     androidTestImplementation deps.espressoCore

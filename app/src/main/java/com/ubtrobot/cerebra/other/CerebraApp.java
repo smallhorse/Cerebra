@@ -1,4 +1,4 @@
-package com.ubtrobot.cerebra;
+package com.ubtrobot.cerebra.other;
 
 import android.app.Application;
 

@@ -1,4 +1,4 @@
-package com.ubtrobot.cerebra.utils;
+package com.ubtrobot.cerebra.util;
 
 /**
  * A util to deal with string.
@@ -9,7 +9,7 @@ public class StringUtil {
         try {
             return Integer.parseInt(str);
         } catch (Exception e) {
-            e.printStackTrace();
+//            e.printStackTrace();
             return defaultValue;
         }
     }
@@ -18,7 +18,7 @@ public class StringUtil {
         try {
             return Boolean.parseBoolean(str);
         } catch (Exception e) {
-            e.printStackTrace();
+//            e.printStackTrace();
             return defaultValue;
         }
     }

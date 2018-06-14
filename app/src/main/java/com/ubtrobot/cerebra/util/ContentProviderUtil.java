@@ -1,4 +1,4 @@
-package com.ubtrobot.cerebra.utils;
+package com.ubtrobot.cerebra.util;
 
 import android.content.ContentResolver;
 import android.content.Context;

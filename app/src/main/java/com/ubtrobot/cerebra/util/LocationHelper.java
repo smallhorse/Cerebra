@@ -1,10 +1,10 @@
-package com.ubtrobot.cerebra.utils;
+package com.ubtrobot.cerebra.util;
 
 import com.tencent.map.geolocation.TencentLocation;
 import com.tencent.map.geolocation.TencentLocationListener;
 import com.tencent.map.geolocation.TencentLocationManager;
 import com.tencent.map.geolocation.TencentLocationRequest;
-import com.ubtrobot.cerebra.CerebraApp;
+import com.ubtrobot.cerebra.other.CerebraApp;
 import com.ubtrobot.ulog.Logger;
 import com.ubtrobot.ulog.ULog;
 

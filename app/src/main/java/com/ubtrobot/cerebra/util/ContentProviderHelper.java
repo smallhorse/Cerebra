@@ -1,4 +1,4 @@
-package com.ubtrobot.cerebra.utils;
+package com.ubtrobot.cerebra.util;
 
 import android.content.ContentResolver;
 import android.content.Context;
@@ -10,8 +10,8 @@ import android.support.annotation.NonNull;
 import com.ubtrobot.cerebra.Constant.SettingConstant;
 import com.ubtrobot.cerebra.model.RobotSystemConfig;
 import com.ubtrobot.cerebra.model.WakeupConfig;
+import com.ubtrobot.cerebra.model.WakeupEvent;
 import com.ubtrobot.cerebra.model.WakeupRingConfig;
-import com.ubtrobot.wakeup.WakeupEvent;
 
 import java.util.Map;
 
@@ -94,12 +94,12 @@ public class ContentProviderHelper {
                 map.get(SETTING_WAKEUP_SPEECH_RINGTONE_TYPE_KEY), defaultType));
         wakeupRingConfig.setWakeupRingValue(map.get(SETTING_WAKEUP_SPEECH_RINGTONE_KEY));
 
-        wakeupRingConfig = config.getWakeupRingConfig(WakeupEvent.TYPE_SIMULATE); //key
+        wakeupRingConfig = config.getWakeupRingConfig(WakeupEvent.TYPE_KEY); //key
         wakeupRingConfig.setWakeupRingType(StringUtil.strToInt
                 (map.get(SETTING_WAKEUP_KEY_RINGTONE_TYPE_KEY), defaultType));
         wakeupRingConfig.setWakeupRingValue(map.get(SETTING_WAKEUP_KEY_RINGTONE_KEY));
 
-        wakeupRingConfig = config.getWakeupRingConfig(WakeupEvent.TYPE_VISION); //vison
+        wakeupRingConfig = config.getWakeupRingConfig(WakeupEvent.TYPE_HUMAN_IN); //vison
         wakeupRingConfig.setWakeupRingType(StringUtil.strToInt(
                 map.get(SETTING_WAKEUP_FACEIN_RINGTONE_TYPE_KEY), defaultType));
         wakeupRingConfig.setWakeupRingValue(map.get(SETTING_WAKEUP_FACEIN_RINGTONE_KEY));
@@ -111,7 +111,7 @@ public class ContentProviderHelper {
                     fetchData();
                     emitter.onComplete();
                 })
-                .subscribeOn(Schedulers.single())
+                .subscribeOn(Schedulers.io())
                 .subscribe();
     }
 

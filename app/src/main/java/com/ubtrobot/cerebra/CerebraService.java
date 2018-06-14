@@ -7,15 +7,19 @@ import android.text.TextUtils;
 
 import com.ubtrobot.Robot;
 import com.ubtrobot.async.DoneCallback;
-import com.ubtrobot.async.FailCallback;
+import com.ubtrobot.async.ProgressivePromise;
 import com.ubtrobot.async.Promise;
 import com.ubtrobot.async.rx.ObservableFromProgressivePromise;
 import com.ubtrobot.async.rx.ObservableFromPromise;
 import com.ubtrobot.cerebra.model.RobotSystemConfig;
+import com.ubtrobot.cerebra.model.WakeupEvent;
 import com.ubtrobot.cerebra.model.WakeupRingConfig;
-import com.ubtrobot.cerebra.utils.ContentProviderHelper;
-import com.ubtrobot.cerebra.utils.LocationHelper;
-import com.ubtrobot.cerebra.utils.ToneHelper;
+import com.ubtrobot.cerebra.other.AlertException;
+import com.ubtrobot.cerebra.util.ContentProviderHelper;
+import com.ubtrobot.cerebra.util.LocationHelper;
+import com.ubtrobot.cerebra.util.RxBus;
+import com.ubtrobot.cerebra.util.ToneHelper;
+import com.ubtrobot.cerebra.util.WakeupStateHelper;
 import com.ubtrobot.exception.AccessServiceException;
 import com.ubtrobot.master.context.MasterContext;
 import com.ubtrobot.master.interactor.MasterInteractor;
@@ -23,8 +27,14 @@ import com.ubtrobot.master.skill.SkillIntent;
 import com.ubtrobot.master.skill.SkillsProxy;
 import com.ubtrobot.master.transport.message.CallGlobalCode;
 import com.ubtrobot.master.transport.message.parcel.ParcelableParam;
+import com.ubtrobot.motion.JointException;
+import com.ubtrobot.motion.JointRotatingProgress;
+import com.ubtrobot.motion.LocomotionException;
+import com.ubtrobot.motion.LocomotionProgress;
 import com.ubtrobot.motion.MotionManager;
+import com.ubtrobot.sensor.SensorManager;
 import com.ubtrobot.speech.RecognizeException;
+import com.ubtrobot.speech.RecognizeOption;
 import com.ubtrobot.speech.Recognizer;
 import com.ubtrobot.speech.SpeechInteraction;
 import com.ubtrobot.speech.SpeechManager;
@@ -36,22 +46,29 @@ import com.ubtrobot.transport.message.Response;
 import com.ubtrobot.transport.message.ResponseCallback;
 import com.ubtrobot.ulog.Logger;
 import com.ubtrobot.ulog.ULog;
-import com.ubtrobot.wakeup.WakeupEvent;
+
+import java.util.HashMap;
+import java.util.Map;
 
 import io.reactivex.Completable;
 import io.reactivex.Observable;
 import io.reactivex.ObservableOnSubscribe;
 import io.reactivex.Observer;
+import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.schedulers.Schedulers;
 
+import static com.ubtrobot.cerebra.Constant.CerebraConstant.CHAT_SKILL_RECOGNIZE;
+import static com.ubtrobot.cerebra.Constant.CerebraConstant.CHAT_SKILL_UNDERSTAND;
+import static com.ubtrobot.cerebra.Constant.CerebraConstant.KEY_WAKEUP_INTENT_ACTION;
+import static com.ubtrobot.cerebra.Constant.CerebraConstant.MASTER_INTERACTOR;
+import static com.ubtrobot.cerebra.Constant.CerebraConstant.ROBOT_YAW_ID;
+import static com.ubtrobot.cerebra.Constant.CerebraConstant.WAKE_UP_TURN_RANGE;
+import static com.ubtrobot.cerebra.Constant.SensorConstant.SOUND_DETECT;
 import static com.ubtrobot.cerebra.model.WakeupRingConfig.WAKEUP_RING_TYPE_NONE;
 import static com.ubtrobot.cerebra.model.WakeupRingConfig.WAKEUP_RING_TYPE_SPEECH;
 import static com.ubtrobot.cerebra.model.WakeupRingConfig.WAKEUP_RING_TYPE_TONE;
-import static com.ubtrobot.wakeup.WakeupEvent.TYPE_SIMULATE;
-import static com.ubtrobot.wakeup.WakeupEvent.TYPE_VISION;
-import static com.ubtrobot.wakeup.WakeupEvent.TYPE_VOICE;
 
 
 /**
@@ -59,22 +76,12 @@ import static com.ubtrobot.wakeup.WakeupEvent.TYPE_VOICE;
  */
 public class CerebraService extends Service {
 
-    public static final String WAKEUP_EVENT = "WAKEUP_EVENT";
-
-    private static final String CHAT_SKILL_UNDERSTAND = "/chat/result/understand";
-    private static final String CHAT_SKILL_RECOGNIZE = "/chat/result/recognize";
-
-    private static final String MASTER_INTERACTOR = "MasterInteractor";
-
-    private static final String ROBOT_YAW_ID = "HeadYaw";
-
-    private static final int WAKE_UP_TURN_RANGE = 30;
-
     private static final Logger LOGGER = ULog.getLogger("CerebraService");
 
     private MasterContext mMasterContext;
     private SpeechManager mSpeechManager;
     private MotionManager mMotionManager;
+    private SensorManager mSensorManager;
     private MasterInteractor mMasterInteractor;
     private SkillsProxy mSkillsProxy;
 
@@ -82,6 +89,9 @@ public class CerebraService extends Service {
 
     private ToneHelper mToneHelper;
     private ContentProviderHelper mContentProviderHelper;
+    private WakeupStateHelper mWakeupStateHelper;
+
+    private volatile boolean mIsRunning = false;
 
     @Override
     public void onCreate() {
@@ -90,13 +100,21 @@ public class CerebraService extends Service {
         mMasterContext = Robot.master().getGlobalContext();
         mSpeechManager = new SpeechManager(mMasterContext);
         mMotionManager = new MotionManager(mMasterContext);
+        mSensorManager = new SensorManager(mMasterContext);
         mMasterInteractor = Robot.master().getOrCreateInteractor(MASTER_INTERACTOR);
         mSkillsProxy = mMasterInteractor.createSkillsProxy();
 
         mToneHelper = new ToneHelper(this);
         mContentProviderHelper = new ContentProviderHelper(this);
+        mWakeupStateHelper = new WakeupStateHelper(mSensorManager, mContentProviderHelper);
 
         LocationHelper.getInstance().requestLocation();
+
+        RxBus.getInstance().register(
+                WakeupEvent.class,
+                AndroidSchedulers.mainThread(),
+                wakeupEvent -> handleWakeupEvent(wakeupEvent));
+
     }
 
     @Override
@@ -104,8 +122,11 @@ public class CerebraService extends Service {
         super.onStartCommand(intent, flags, startId);
 
         if (intent != null) {
-            WakeupEvent event = intent.getParcelableExtra(WAKEUP_EVENT);
-            if (event != null) {
+            if (KEY_WAKEUP_INTENT_ACTION.equals(intent.getAction())) {
+                WakeupEvent event =
+                        WakeupEvent.newInstance()
+                                .setType(WakeupEvent.TYPE_KEY);
+
                 handleWakeupEvent(event);
             }
         }
@@ -119,6 +140,8 @@ public class CerebraService extends Service {
 
     private void handleWakeupEvent(WakeupEvent wakeupEvent) {
 
+        mWakeupStateHelper.addWakeupEvent(wakeupEvent);
+
         RobotSystemConfig robotSystemConfig = getRobotSystemConfig();
 
         // Return if it is power off mode
@@ -128,33 +151,48 @@ public class CerebraService extends Service {
         }
 
         // Interrupt current robot background task
-        if (wakeupEvent.getType() == TYPE_VOICE || wakeupEvent.getType() == TYPE_SIMULATE) {
+        if (wakeupEvent.isWakedByVoice() || wakeupEvent.isWakedByKey()) {
 
             LOGGER.i("Robot background task is interrupted.");
             stopRobotBackgroundTask();
-        } else if (wakeupEvent.getType() == TYPE_VISION) {
+        } else if (wakeupEvent.isWakedByHumanIN()) {
 
             // Ignore vision wakeup event in wakeup status.
-            if (!mCompositeDisposable.isDisposed()) {
+            if (isRunning()) {
                 LOGGER.i("Ignore vision wakeup event in wakeup status.");
                 return;
             }
+        } else if (wakeupEvent.isWakedByHumanOut()) {
+            if (mWakeupStateHelper.isNobodyHere()) {
+                stopRobotBackgroundTask();
+            }
         }
 
-        Disposable disposable = stopTTs()
+        boolean isContinuousMode =
+                robotSystemConfig
+                        .getWakeupConfig()
+                        .isVisualWakeUpEnabled();
+
+        setRunning(true);
+
+        Disposable disposable = stopTTS()
                 .subscribeOn(Schedulers.single())
                 .observeOn(Schedulers.single())
                 .andThen(turnToCustomer(wakeupEvent, robotSystemConfig))
                 .andThen(playWakeupNotification(wakeupEvent, robotSystemConfig))
-                .andThen(startSpeechRecognization())
+                .andThen(startSpeechRecognization(isContinuousMode))
                 .flatMap(recognizeResult -> dispatchEventLocally(recognizeResult))
-                .doOnNext(recognizeResult -> sendRecognizeResultToVoiceAssistant(recognizeResult))
+                .doOnNext(recognizeResult -> sendToVoiceAssistant(recognizeResult))
                 .flatMap(recognizeResult -> understand(recognizeResult))
                 .flatMap(speechInteraction -> dispatchEventOnline(speechInteraction))
                 .doOnError(throwable -> {
-                    if (throwable instanceof RecognizeException) {
+
+                    if (throwable instanceof AlertException) {
+
+                        String msg = ((AlertException) throwable).getAlertMsg();
+
                         mCompositeDisposable.add(
-                                talk(getString(R.string.i_do_not_know_what_you_are_talking_about))
+                                talk(msg)
                                         .subscribeOn(Schedulers.single())
                                         .observeOn(Schedulers.single())
                                         .subscribe());
@@ -171,17 +209,29 @@ public class CerebraService extends Service {
                     LOGGER.e("Subscribe");
 
                 }, throwable -> {
-
+                    setRunning(false);
                     LOGGER.e("Wakeup process error.");
                     LOGGER.e((Throwable) throwable);
-                }, () -> LOGGER.i("Wakeup process completed."));
+                }, () -> {
+                    setRunning(false);
+                    LOGGER.i("Wakeup process completed.");
+                });
 
         mCompositeDisposable.add(disposable);
     }
 
 
     private void stopRobotBackgroundTask() {
+        mIsRunning = false;
         mCompositeDisposable.clear();
+    }
+
+    private synchronized boolean isRunning() {
+        return mIsRunning;
+    }
+
+    private synchronized void setRunning(boolean mIsRunning) {
+        this.mIsRunning = mIsRunning;
     }
 
 
@@ -194,12 +244,22 @@ public class CerebraService extends Service {
         return mContentProviderHelper.getRobotSystemConfig();
     }
 
+    private void setBeam0() {
+        Map<String, String> map = new HashMap<>();
+        map.put("angle", "0");
+        mSensorManager.controlSensor(SOUND_DETECT, "setBeam", map)
+                .done(aVoid -> LOGGER.i("setBeam0 success"))
+                .fail(e -> {
+                    LOGGER.e("setBeam0 failure");
+                    LOGGER.e(e);
+                });
+    }
 
     private Completable turnToCustomer(WakeupEvent wakeupEvent,
                                        RobotSystemConfig robotSystemConfig) {
 
         if (!robotSystemConfig.getWakeupConfig().isRotateRobotEnabled()
-                || wakeupEvent.getType() != TYPE_VOICE) {
+                || !wakeupEvent.isWakedByVoice()) {
 
             return Completable.complete();
         }
@@ -241,6 +301,10 @@ public class CerebraService extends Service {
     private Completable playWakeupNotification(WakeupEvent wakeupEvent,
                                                RobotSystemConfig robotSystemConfig) {
 
+        LOGGER.i("playWakeupNotification");
+
+        setBeam0();
+
         WakeupRingConfig wakeupRingConfig = robotSystemConfig
                 .getWakeupConfig()
                 .getWakeupRingConfig(wakeupEvent.getType());
@@ -257,11 +321,16 @@ public class CerebraService extends Service {
         }
     }
 
-    private Observable<Recognizer.RecognizeResult> startSpeechRecognization() {
-
+    private Observable<Recognizer.RecognizeResult> startSpeechRecognization(boolean isContinuousMode) {
         return Observable.create(emitter -> {
-            Promise promise = mSpeechManager.recognize();
-            LOGGER.i("Start Speech Recognization");
+            RecognizeOption option = new RecognizeOption
+                    .Builder(isContinuousMode ? RecognizeOption.MODE_CONTINUOUS : RecognizeOption.MODE_SINGLE)
+                    .build();
+
+            ProgressivePromise<Recognizer.RecognizeResult, RecognizeException, Recognizer.RecognizingProgress>
+                    promise = mSpeechManager.recognize(option);
+
+            LOGGER.i("StartSpeechRecognization");
 
             emitter.setDisposable(new Disposable() {
                 @Override
@@ -277,21 +346,33 @@ public class CerebraService extends Service {
                 }
             });
 
-            promise.done(new DoneCallback<Recognizer.RecognizeResult>() {
+            promise.done(recognizeResult -> {
+                LOGGER.i("recognize onDone: " + recognizeResult.getText());
 
-                @Override
-                public void onDone(Recognizer.RecognizeResult recognizeResult) {
-                    if (!emitter.isDisposed()) {
-                        emitter.onNext(recognizeResult);
-                        emitter.onComplete();
+                if (!emitter.isDisposed()) {
+                    if (!isContinuousMode) {
+                        if (TextUtils.isEmpty(recognizeResult.getText())) {
+                            emitter.onError(AlertException.newInstance(
+                                    getString(R.string.i_do_not_know_what_you_are_talking_about)));
+                        } else {
+                            emitter.onNext(recognizeResult);
+
+                        }
+                    }
+                    emitter.onComplete();
+                }
+            }).progress(recognizingProgress -> {
+
+                if (recognizingProgress.getState() == Recognizer.RecognizingProgress.STATE_RESULT) {
+                    LOGGER.i("recognize onProgress: " + recognizingProgress.getResult().getText());
+
+                    if (isContinuousMode) {
+                        emitter.onNext(recognizingProgress.getResult());
                     }
                 }
-            }).fail(new FailCallback<Throwable>() {
-                @Override
-                public void onFail(Throwable throwable) {
-                    if (!emitter.isDisposed()) {
-                        emitter.onError(throwable);
-                    }
+            }).fail(throwable -> {
+                if (!emitter.isDisposed()) {
+                    emitter.onError(throwable);
                 }
             });
 
@@ -305,8 +386,10 @@ public class CerebraService extends Service {
 
             @Override
             protected void subscribeActual(Observer<? super Float> observer) {
-                Promise promise = mMotionManager.getJointAngle("HeadYaw");
-                LOGGER.i("Start Speech Recognization");
+                Promise<Float, AccessServiceException> promise
+                        = mMotionManager.getJointAngle("HeadYaw");
+
+                LOGGER.i("getYawAngle");
 
                 observer.onSubscribe(new Disposable() {
                     @Override
@@ -322,45 +405,32 @@ public class CerebraService extends Service {
                     }
                 });
 
-                promise.done(new DoneCallback<Float>() {
-
-                    @Override
-                    public void onDone(Float f) {
-                        observer.onNext(f);
-                        observer.onComplete();
-                    }
-                }).fail(new FailCallback<Throwable>() {
-                    @Override
-                    public void onFail(Throwable throwable) {
-                        observer.onError(throwable);
-                    }
-                });
+                promise.done(f -> {
+                    observer.onNext(f);
+                    observer.onComplete();
+                }).fail(throwable -> observer.onError(throwable));
             }
         };
     }
 
-
     private Completable RotateLocoMotor(Float angle, long duration) {
 
         return Completable.create(emitter -> {
-            Promise promise = mMotionManager.turnBy(angle, duration);
+            ProgressivePromise<Void, LocomotionException, LocomotionProgress>
+                    promise = mMotionManager.turnBy(angle, duration);
+
             LOGGER.i("Start rotate locoMotor");
 
-            promise.done(new DoneCallback() {
-                @Override
-                public void onDone(Object o) {
-                    if (!emitter.isDisposed()) {
-                        emitter.onComplete();
-                    }
+            promise.done((DoneCallback) o -> {
+                if (!emitter.isDisposed()) {
+                    emitter.onComplete();
                 }
-            }).fail(new FailCallback<Throwable>() {
-                @Override
-                public void onFail(Throwable t) {
-                    if (!emitter.isDisposed()) {
-                        emitter.onError(t);
-                    }
+            }).fail(t -> {
+                if (!emitter.isDisposed()) {
+                    emitter.onError((Throwable) t);
                 }
             });
+
             emitter.setDisposable(new Disposable() {
                 @Override
                 public void dispose() {
@@ -376,28 +446,22 @@ public class CerebraService extends Service {
             });
         });
     }
-
 
     private Completable RotateYaw(Float angle, long duration) {
 
         return Completable.create(emitter -> {
             LOGGER.i("Start rotate Yaw");
 
-            Promise promise = mMotionManager.jointRotateBy(ROBOT_YAW_ID, angle, duration);
+            ProgressivePromise<Void, JointException, JointRotatingProgress> promise
+                    = mMotionManager.jointRotateBy(ROBOT_YAW_ID, angle, duration);
 
-            promise.done(new DoneCallback() {
-                @Override
-                public void onDone(Object o) {
-                    if (!emitter.isDisposed()) {
-                        emitter.onComplete();
-                    }
+            promise.done((DoneCallback) o -> {
+                if (!emitter.isDisposed()) {
+                    emitter.onComplete();
                 }
-            }).fail(new FailCallback<Throwable>() {
-                @Override
-                public void onFail(Throwable t) {
-                    if (!emitter.isDisposed()) {
-                        emitter.onError(t);
-                    }
+            }).fail(t -> {
+                if (!emitter.isDisposed()) {
+                    emitter.onError((Throwable) t);
                 }
             });
             emitter.setDisposable(new Disposable() {
@@ -417,7 +481,7 @@ public class CerebraService extends Service {
 
     }
 
-    private void sendRecognizeResultToVoiceAssistant(Recognizer.RecognizeResult recognizeResult) {
+    private void sendToVoiceAssistant(Recognizer.RecognizeResult recognizeResult) {
 
         LOGGER.i("Send RecognizeResult To VoiceAssistant");
 
@@ -440,6 +504,8 @@ public class CerebraService extends Service {
 
     private Observable<Recognizer.RecognizeResult> dispatchEventLocally(
             final Recognizer.RecognizeResult recognizeResult) {
+
+        LOGGER.i("dispatchEventLocally: " + recognizeResult.getText());
 
         SkillIntent skillIntent = new SkillIntent(SkillIntent.CATEGORY_SPEECH);
         skillIntent.setSpeechUtterance(recognizeResult.getText());
@@ -488,6 +554,7 @@ public class CerebraService extends Service {
         return Observable.create((ObservableOnSubscribe<UnderstandResult>) emitter -> {
 
             String action = speechInteraction.getUnderstandResult().getIntent().getName();
+
             LOGGER.i("UnderstandResult:" + action);
 
             try {
@@ -529,7 +596,7 @@ public class CerebraService extends Service {
     }
 
 
-    private Completable stopTTs() {
+    private Completable stopTTS() {
 
         return new ObservableFromProgressivePromise(mSpeechManager.synthesize(" "))
                 .ignoreElements()
@@ -542,6 +609,7 @@ public class CerebraService extends Service {
         stopRobotBackgroundTask();
         mToneHelper.release();
         mContentProviderHelper.release();
+        mWakeupStateHelper.release();
 
         super.onDestroy();
     }
