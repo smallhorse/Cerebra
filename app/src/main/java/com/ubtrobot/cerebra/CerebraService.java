@@ -12,6 +12,7 @@ import com.ubtrobot.async.Promise;
 import com.ubtrobot.async.rx.ObservableFromProgressivePromise;
 import com.ubtrobot.async.rx.ObservableFromPromise;
 import com.ubtrobot.cerebra.model.RobotSystemConfig;
+import com.ubtrobot.cerebra.model.StartHumanDetectionEvent;
 import com.ubtrobot.cerebra.model.WakeupEvent;
 import com.ubtrobot.cerebra.model.WakeupRingConfig;
 import com.ubtrobot.cerebra.other.AlertException;
@@ -65,6 +66,7 @@ import static com.ubtrobot.cerebra.Constant.CerebraConstant.KEY_WAKEUP_INTENT_AC
 import static com.ubtrobot.cerebra.Constant.CerebraConstant.MASTER_INTERACTOR;
 import static com.ubtrobot.cerebra.Constant.CerebraConstant.ROBOT_YAW_ID;
 import static com.ubtrobot.cerebra.Constant.CerebraConstant.WAKE_UP_TURN_RANGE;
+import static com.ubtrobot.cerebra.Constant.SensorConstant.HUMAN_DETECT;
 import static com.ubtrobot.cerebra.Constant.SensorConstant.SOUND_DETECT;
 import static com.ubtrobot.cerebra.model.WakeupRingConfig.WAKEUP_RING_TYPE_NONE;
 import static com.ubtrobot.cerebra.model.WakeupRingConfig.WAKEUP_RING_TYPE_SPEECH;
@@ -115,6 +117,15 @@ public class CerebraService extends Service {
                 AndroidSchedulers.mainThread(),
                 wakeupEvent -> handleWakeupEvent(wakeupEvent));
 
+        RxBus.getInstance().register(
+                StartHumanDetectionEvent.class,
+                Schedulers.io(),
+                enable -> enableSensor(enable.isEnable()));
+
+        // Init Visual Sensor when service starts.
+        enableSensor(getRobotSystemConfig()
+                .getWakeupConfig()
+                .isVisualWakeUpEnabled());
     }
 
     @Override
@@ -220,6 +231,24 @@ public class CerebraService extends Service {
         mCompositeDisposable.add(disposable);
     }
 
+    public void enableSensor(boolean enable) {
+        if (enable) {
+            mSensorManager.enableSensor(HUMAN_DETECT)
+                    .done(aBoolean -> LOGGER.i("enableSensor result: " + aBoolean))
+                    .fail(e -> {
+                        LOGGER.e("enableSensor failed");
+                        LOGGER.e(e);
+                    });
+
+        } else {
+            mSensorManager.disableSensor(HUMAN_DETECT)
+                    .done(aBoolean -> LOGGER.i("disableSensor result: " + aBoolean))
+                    .fail(e -> {
+                        LOGGER.e("disableSensor failed");
+                        LOGGER.e(e);
+                    });
+        }
+    }
 
     private void stopRobotBackgroundTask() {
         mIsRunning = false;

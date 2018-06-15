@@ -2,8 +2,6 @@ package com.ubtrobot.cerebra.util;
 
 import com.ubtrobot.cerebra.Constant.SensorConstant;
 import com.ubtrobot.cerebra.model.WakeupEvent;
-import com.ubtrobot.sensor.Sensor;
-import com.ubtrobot.sensor.SensorEvent;
 import com.ubtrobot.sensor.SensorListener;
 import com.ubtrobot.sensor.SensorManager;
 import com.ubtrobot.ulog.Logger;
@@ -12,11 +10,12 @@ import com.ubtrobot.ulog.ULog;
 import java.util.ArrayDeque;
 import java.util.Queue;
 
+import static com.ubtrobot.cerebra.Constant.SensorConstant.HUMAN_DETECT;
+
 
 public class WakeupStateHelper {
 
     private static final Logger LOGGER = ULog.getLogger("WakeupStateHelper");
-
 
     private static final int MAX_QUEUE_SIZE = 6;
 
@@ -77,7 +76,7 @@ public class WakeupStateHelper {
                             .setAngle(angle));
         };
 
-        mSensorManager.registerSensorListener(SensorConstant.HUMAN_DETECT, mHumanDetectListener);
+        mSensorManager.registerSensorListener(HUMAN_DETECT, mHumanDetectListener);
 
         mSensorManager.registerSensorListener(SensorConstant.SOUND_DETECT, mSoundDetectListener);
     }
@@ -93,9 +92,9 @@ public class WakeupStateHelper {
         int humanIn = 0;
         int humanOut = 0;
 
-        for(WakeupEvent wakeupEvent : mWakeupQueue) {
+        for (WakeupEvent wakeupEvent : mWakeupQueue) {
             humanIn += wakeupEvent.isWakedByHumanIN() ? 0 : 1;
-            humanOut += wakeupEvent.isWakedByHumanOut() ? 0: 1;
+            humanOut += wakeupEvent.isWakedByHumanOut() ? 0 : 1;
         }
 
         return humanIn > 0 && humanOut >= humanIn;
@@ -118,6 +117,6 @@ public class WakeupStateHelper {
 
         mSensorManager.unregisterSensorListener(SensorConstant.SOUND_DETECT, mSoundDetectListener);
 
-        mSensorManager.unregisterSensorListener(SensorConstant.HUMAN_DETECT, mHumanDetectListener);
+        mSensorManager.unregisterSensorListener(HUMAN_DETECT, mHumanDetectListener);
     }
 }

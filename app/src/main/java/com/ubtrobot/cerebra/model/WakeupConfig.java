@@ -1,5 +1,7 @@
 package com.ubtrobot.cerebra.model;
 
+import com.ubtrobot.cerebra.util.RxBus;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -43,6 +45,12 @@ public class WakeupConfig {
     }
 
     public void setVisualWakeUpEnabled(boolean visualWakeUpEnabled) {
-        isVisualWakeUpEnabled = visualWakeUpEnabled;
+        if (isVisualWakeUpEnabled != visualWakeUpEnabled) {
+            isVisualWakeUpEnabled = visualWakeUpEnabled;
+            RxBus.getInstance().post(
+                    StartHumanDetectionEvent
+                            .newInstance()
+                            .setEnable(visualWakeUpEnabled));
+        }
     }
 }
