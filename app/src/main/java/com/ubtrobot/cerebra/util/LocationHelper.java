@@ -47,10 +47,17 @@ public class LocationHelper implements TencentLocationListener {
     }
 
     public void requestLocation() {
-        mLocationManager = TencentLocationManager.getInstance(CerebraApp.getInstance());
+        mLocationManager = TencentLocationManager
+                .getInstance(CerebraApp.getInstance());
+
         // 设置坐标系为 gcj-02, 缺省坐标为 gcj-02, 所以通常不必进行如下调用
         mLocationManager.setCoordinateType(TencentLocationManager.COORDINATE_TYPE_GCJ02);
-        TencentLocationRequest request = TencentLocationRequest.create().setRequestLevel(TencentLocationRequest.REQUEST_LEVEL_ADMIN_AREA).setInterval(60000); // 设置定位周期, 建议值为 1s-20s
+        TencentLocationRequest request
+                = TencentLocationRequest
+                .create()
+                .setRequestLevel(TencentLocationRequest.REQUEST_LEVEL_ADMIN_AREA)
+                .setInterval(60000); // 设置定位周期, 建议值为 1s-20s
+
         // 开始定位
         int code = mLocationManager.requestLocationUpdates(request, this);
         LOGGER.i("request location, code: " + code);
@@ -69,9 +76,23 @@ public class LocationHelper implements TencentLocationListener {
         if (error == TencentLocation.ERROR_OK) {
             // 定位成功
             StringBuilder sb = new StringBuilder();
-            sb.append("(纬度=").append(location.getLatitude()).append(",经度=").append(location.getLongitude()).append(",精度=").append(location.getAccuracy()).append("), 来源=").append(location.getProvider()).append(", 城市=").append(location.getCity()).append(",citycode=").append(location.getCityCode());
+            sb.append("(纬度=")
+                    .append(location.getLatitude())
+                    .append(",经度=")
+                    .append(location.getLongitude())
+                    .append(",精度=")
+                    .append(location.getAccuracy())
+                    .append("), 来源=")
+                    .append(location.getProvider())
+                    .append(", 城市=")
+                    .append(location.getCity())
+                    .append(",citycode=")
+                    .append(location.getCityCode());
+
             save(location);
+
             mLocationManager.removeUpdates(this);
+
             LOGGER.i(sb.toString());
             LOGGER.i("更新完成 取消监听");
         } else {
