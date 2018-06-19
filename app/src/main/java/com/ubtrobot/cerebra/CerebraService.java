@@ -151,8 +151,6 @@ public class CerebraService extends Service {
 
     private void handleWakeupEvent(WakeupEvent wakeupEvent) {
 
-        mWakeupStateHelper.addWakeupEvent(wakeupEvent);
-
         RobotSystemConfig robotSystemConfig = getRobotSystemConfig();
 
         // Return if it is power off mode
@@ -164,6 +162,8 @@ public class CerebraService extends Service {
         // Interrupt current robot background task
         if (wakeupEvent.isWakedByVoice() || wakeupEvent.isWakedByKey()) {
 
+            mWakeupStateHelper.addEffectiveWakeupEvent(wakeupEvent);
+
             LOGGER.i("Robot background task is interrupted.");
             stopRobotBackgroundTask();
         } else if (wakeupEvent.isWakedByHumanIN()) {
@@ -172,9 +172,12 @@ public class CerebraService extends Service {
             if (isRunning()) {
                 LOGGER.i("Ignore vision wakeup event in wakeup status.");
                 return;
+            } else {
+                mWakeupStateHelper.addEffectiveWakeupEvent(wakeupEvent);
+
             }
         } else if (wakeupEvent.isWakedByHumanOut()) {
-            if (mWakeupStateHelper.isNobodyHere()) {
+            if (mWakeupStateHelper.isLastEventWakedByVision()) {
                 stopRobotBackgroundTask();
             }
         }

@@ -17,13 +17,14 @@ public class WakeupStateHelper {
 
     private static final Logger LOGGER = ULog.getLogger("WakeupStateHelper");
 
-    private static final int MAX_QUEUE_SIZE = 6;
+    private static final int MAX_QUEUE_SIZE = 1;
 
     private SensorManager mSensorManager;
     private SensorListener mHumanDetectListener;
     private SensorListener mSoundDetectListener;
     private ContentProviderHelper mContentProviderHelper;
 
+    // Wakeup event queue that holds effective events only, events that trigger wakeup process.
     private Queue<WakeupEvent> mWakeupQueue = new ArrayDeque<>();
 
 
@@ -82,13 +83,23 @@ public class WakeupStateHelper {
         mSensorManager.registerSensorListener(SensorConstant.SOUND_DETECT, mSoundDetectListener);
     }
 
-    public void addWakeupEvent(WakeupEvent wakeupEvent) {
+    public void addEffectiveWakeupEvent(WakeupEvent wakeupEvent) {
         mWakeupQueue.add(wakeupEvent);
         if (mWakeupQueue.size() > MAX_QUEUE_SIZE) {
             mWakeupQueue.remove();
         }
     }
 
+    public boolean isLastEventWakedByVision() {
+        if(mWakeupQueue.size() >= 1) {
+            WakeupEvent wakeupEvent = mWakeupQueue.remove();
+            return wakeupEvent.isWakedByHumanIN();
+        } else {
+            return false;
+        }
+    }
+
+    // This function is not valid as HUMAN_CLOSER and HUMAN_AWAY are exclusive
     public boolean isNobodyHere() {
         int humanIn = 0;
         int humanOut = 0;
