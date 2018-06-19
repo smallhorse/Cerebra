@@ -32,9 +32,10 @@ public class WakeupStateHelper {
         this.mContentProviderHelper = contentProviderHelper;
 
         mHumanDetectListener = (sensor, sensorEvent) -> {
-            int direction = Math.round(sensorEvent.getValues()[0]);
 
             try {
+                int direction = Math.round(sensorEvent.getValues()[0]);
+
                 switch (direction) {
                     case SensorConstant.HUMAN_AWAY:
                         LOGGER.i("HUMAN_AWAY");
