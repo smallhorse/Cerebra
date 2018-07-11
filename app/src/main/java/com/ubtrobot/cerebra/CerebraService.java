@@ -88,6 +88,8 @@ public class CerebraService extends Service {
     private SkillsProxy mSkillsProxy;
 
     private CompositeDisposable mCompositeDisposable = new CompositeDisposable();
+    private CompositeDisposable mRxbusDisposable = new CompositeDisposable();
+
 
     private ToneHelper mToneHelper;
     private ContentProviderHelper mContentProviderHelper;
@@ -112,15 +114,16 @@ public class CerebraService extends Service {
 
         LocationHelper.getInstance().requestLocation();
 
-        RxBus.getInstance().register(
-                WakeupEvent.class,
-                AndroidSchedulers.mainThread(),
-                wakeupEvent -> handleWakeupEvent(wakeupEvent));
-
-        RxBus.getInstance().register(
-                StartHumanDetectionEvent.class,
-                Schedulers.io(),
-                enable -> enableSensor(enable.isEnable()));
+        mRxbusDisposable.add(
+                RxBus.getInstance().register(
+                        WakeupEvent.class,
+                        AndroidSchedulers.mainThread(),
+                        wakeupEvent -> handleWakeupEvent(wakeupEvent)));
+        mRxbusDisposable.add(
+                RxBus.getInstance().register(
+                        StartHumanDetectionEvent.class,
+                        Schedulers.io(),
+                        enable -> enableSensor(enable.isEnable())));
 
         // Init Visual Sensor when service starts.
         enableSensor(getRobotSystemConfig()
@@ -642,6 +645,7 @@ public class CerebraService extends Service {
         mToneHelper.release();
         mContentProviderHelper.release();
         mWakeupStateHelper.release();
+        mRxbusDisposable.clear();
 
         super.onDestroy();
     }
