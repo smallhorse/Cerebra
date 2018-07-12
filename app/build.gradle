@@ -9,7 +9,7 @@ android {
 
         minSdkVersion sdk.minSdkVersion
         targetSdkVersion sdk.targetSdkVersion
-
+        multiDexEnabled true
         def versions = rootProject.ext.versions
         versionCode versions.sampleVersionCode
         versionName versions.sampleVersionName
@@ -65,6 +65,7 @@ dependencies {
     implementation deps.rxJava
     implementation deps.rxAndroid
     implementation deps.rxRelay
+    implementation deps.multidex
 
     testImplementation deps.junit
     androidTestImplementation deps.espressoCore
