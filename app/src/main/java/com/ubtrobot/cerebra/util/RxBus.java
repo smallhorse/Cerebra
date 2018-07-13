@@ -4,8 +4,6 @@ package com.ubtrobot.cerebra.util;
 import com.jakewharton.rxrelay2.PublishRelay;
 import com.jakewharton.rxrelay2.Relay;
 
-import java.util.concurrent.ConcurrentHashMap;
-
 import io.reactivex.Observable;
 import io.reactivex.Scheduler;
 import io.reactivex.android.schedulers.AndroidSchedulers;
@@ -42,55 +40,6 @@ public class RxBus {
         return bus.ofType(eventType);
     }
 
-    ConcurrentHashMap<Class, Object> mStickMap = new ConcurrentHashMap<>();
-
-    /**
-     * 发送rxbus粘性广播
-     *
-     * @param event
-     */
-    public void postSticky(Object event) {
-        mStickMap.put(event.getClass(), event);
-    }
-
-    /**
-     * 消费粘性广播(仅一处消费)
-     */
-    public <T> void registerStickyJustHere(final Class<T> eventType,
-                                           Scheduler scheduler,
-                                           Consumer<T> consumer) {
-        T t = (T) mStickMap.get(eventType);
-        if (t != null) {
-            Observable.just(t).observeOn(scheduler).subscribe(consumer);
-            clearSticky(eventType);
-        }
-    }
-
-    public <T> void registerStickyJustHere(Class<T> eventType,
-                                           Consumer<T> consumer) {
-        registerStickyJustHere(eventType, AndroidSchedulers.mainThread(), consumer);
-    }
-
-    /**
-     * 消费粘性广播
-     */
-    public <T> void registerSticky(Class<T> eventType,
-                                   Scheduler scheduler,
-                                   final Consumer<T> consumer) {
-        T t = (T) mStickMap.get(eventType);
-        if (t != null) {
-            Observable.just(t).subscribe(consumer);
-        }
-    }
-
-    public <T> void registerSticky(Class<T> eventType,
-                                   Consumer<T> consumer) {
-        registerSticky(eventType, AndroidSchedulers.mainThread(), consumer);
-    }
-
-    public <T> void clearSticky(Class<T> eventType) {
-        mStickMap.remove(eventType);
-    }
 
     public boolean hasObservers() {
         return bus.hasObservers();
