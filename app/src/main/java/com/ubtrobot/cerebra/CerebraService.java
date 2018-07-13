@@ -153,7 +153,7 @@ public class CerebraService extends Service {
     }
 
     private void handleWakeupEvent(WakeupEvent wakeupEvent) {
-
+        LOGGER.i("handleWakeupEvent。。。");
         RobotSystemConfig robotSystemConfig = getRobotSystemConfig();
 
         // Return if it is power off mode
@@ -621,10 +621,12 @@ public class CerebraService extends Service {
 
         if (!TextUtils.isEmpty(msg)) {
             LOGGER.i("Talk: " + msg);
-            return new ObservableFromProgressivePromise(mSpeechManager.synthesize(msg))
-                    .ignoreElements()
-                    .doOnError(throwable -> LOGGER.e(throwable))
-                    .onErrorComplete();
+            mSpeechManager.synthesize(msg);
+            return Completable.complete();
+//            return new ObservableFromProgressivePromise(mSpeechManager.synthesize(msg))
+//                    .ignoreElements()
+//                    .doOnError(throwable -> LOGGER.e(throwable))
+//                    .onErrorComplete();
         } else {
             return Completable.complete();
         }

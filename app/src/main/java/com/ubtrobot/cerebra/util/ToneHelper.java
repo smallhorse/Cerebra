@@ -67,9 +67,10 @@ public class ToneHelper {
 
                             mMediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
 
-                            mMediaPlayer.setOnCompletionListener(mp -> emitter.onComplete());
+//                            mMediaPlayer.setOnCompletionListener(mp -> emitter.onComplete());
 
                             mMediaPlayer.start();
+                            emitter.onComplete();
                         } catch (Exception e) {
                             LOGGER.e("Tone play error!");
                             LOGGER.e(e);
